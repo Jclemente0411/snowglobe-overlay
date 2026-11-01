@@ -2,7 +2,8 @@ name: Build Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, feature/holiday-effects-v1]
+  pull_request:
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,11 +15,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Build debug APK
+      - name: Build and lint
         run: |
           wget -q https://services.gradle.org/distributions/gradle-8.9-bin.zip
           unzip -q gradle-8.9-bin.zip
-          ./gradle-8.9/bin/gradle --no-daemon assembleDebug
+          ./gradle-8.9/bin/gradle --no-daemon assembleDebug lintDebug
       - uses: actions/upload-artifact@v4
         with:
           name: SnowGlobe-debug-apk
