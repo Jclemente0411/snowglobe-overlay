@@ -94,7 +94,7 @@ class StudioActivity : ComponentActivity() {
     }
     override fun onResume(){super.onResume();foreground=true;overlay?.visibility=View.INVISIBLE;if(running && overlay==null && Settings.canDrawOverlays(this))startEffects()}
     override fun onStop(){foreground=false;overlay?.visibility=View.VISIBLE;super.onStop()}
-    override fun onDestroy(){stopEffects();super.onDestroy()}
+    override fun onDestroy(){super.onDestroy()}
 
     @Composable private fun Studio() {
         var tab by remember { mutableIntStateOf(0) }
@@ -103,8 +103,8 @@ class StudioActivity : ComponentActivity() {
         MaterialTheme(colorScheme=scheme,shapes=Shapes(large=RoundedCornerShape(28.dp),medium=RoundedCornerShape(20.dp))) {
             Scaffold(
                 containerColor=Night,
-                contentWindowInsets=WindowInsets.safeDrawing,
-                topBar={ Column(Modifier.fillMaxWidth().padding(start=24.dp,end=24.dp,top=18.dp,bottom=12.dp)) {
+                contentWindowInsets=WindowInsets(0,0,0,0),
+                topBar={ Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start=24.dp,end=24.dp,top=18.dp,bottom=12.dp)) {
                     Text("SnowGlobe  ❄",style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
                     Text("Your personal Christmas studio",color=Muted,style=MaterialTheme.typography.bodyMedium)
