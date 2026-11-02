@@ -16,14 +16,19 @@ public class SnowWallpaperService extends WallpaperService {
     private final class SnowEngine extends Engine implements Choreographer.FrameCallback {
         private SharedPreferences prefs;
         private SceneRenderer renderer;
-        private boolean visible=false,surfaceReady=false,ambient=false,posted=false,powerSave=false;
+        private boolean visible=false,surfaceReady=false,interactive=false,posted=false,powerSave=false;
         private long presented=0L,lastTouch=0L;
         private int frames=0;
         private final SharedPreferences.OnSharedPreferenceChangeListener changes=(p,key)->{
             if(key!=null&&!key.startsWith("_")){renderer.apply(new SceneSettings(p));requestFrame();}
         };
         private final BroadcastReceiver powerChanges=new BroadcastReceiver(){
-            @Override public void onReceive(Context c,Intent i){readPower();requestFrame();}
+            @Override public void onReceive(Context c,Intent i){
+                boolean wasInteractive=interactive;
+                readPower();
+                if(!interactive)cancel();
+                else {if(!wasInteractive&&visible)renderer.wake();requestFrame();}
+            }
         };
         @Override public void onCreate(SurfaceHolder holder){
             super.onCreate(holder);
@@ -33,10 +38,14 @@ public class SnowWallpaperService extends WallpaperService {
             renderer.setWallpaper(true);prefs.registerOnSharedPreferenceChangeListener(changes);
             setTouchEventsEnabled(true);setOffsetNotificationsEnabled(false);readPower();
             IntentFilter filter=new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
+            filter.addAction(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);filter.addAction(Intent.ACTION_USER_PRESENT);
             if(Build.VERSION.SDK_INT>=33)registerReceiver(powerChanges,filter,Context.RECEIVER_NOT_EXPORTED);
             else registerReceiver(powerChanges,filter);
         }
-        private void readPower(){PowerManager pm=getSystemService(PowerManager.class);powerSave=pm!=null&&pm.isPowerSaveMode();}
+        private void readPower(){
+            PowerManager pm=getSystemService(PowerManager.class);
+            powerSave=pm!=null&&pm.isPowerSaveMode();interactive=pm!=null&&pm.isInteractive();
+        }
         @Override public void onSurfaceCreated(SurfaceHolder holder){super.onSurfaceCreated(holder);surfaceReady=true;requestFrame();}
         @Override public void onSurfaceChanged(SurfaceHolder holder,int format,int w,int h){
             super.onSurfaceChanged(holder,format,w,h);surfaceReady=true;
@@ -49,18 +58,15 @@ public class SnowWallpaperService extends WallpaperService {
         @Override public void onVisibilityChanged(boolean shown){
             visible=shown;cancel();if(shown){readPower();renderer.wake();frames=0;requestFrame();}
         }
-        @Override public void onAmbientModeChanged(boolean isAmbient,long duration){
-            ambient=isAmbient;cancel();if(!ambient&&visible){renderer.wake();requestFrame();}else if(visible)render();
-        }
         @Override public void onTouchEvent(MotionEvent event){
             if(event.getActionMasked()==MotionEvent.ACTION_DOWN){long now=android.os.SystemClock.uptimeMillis();
                 if(now-lastTouch>250){lastTouch=now;renderer.touch(event.getX(),event.getY());requestFrame();}}
             super.onTouchEvent(event);
         }
-        private void requestFrame(){if(!posted&&visible&&surfaceReady&&!ambient){posted=true;Choreographer.getInstance().postFrameCallback(this);}}
+        private void requestFrame(){if(!posted&&visible&&surfaceReady&&interactive){posted=true;Choreographer.getInstance().postFrameCallback(this);}}
         private void cancel(){if(posted)Choreographer.getInstance().removeFrameCallback(this);posted=false;presented=0;if(renderer!=null)renderer.resetClock();}
         @Override public void doFrame(long nanos){
-            posted=false;if(!visible||!surfaceReady||ambient)return;
+            posted=false;if(!visible||!surfaceReady||!interactive)return;
             if(MotionMath.frameDue(presented,nanos,MotionMath.fps(renderer.settings().quality,powerSave))){
                 presented=nanos;renderer.advance(nanos);render();
             }
