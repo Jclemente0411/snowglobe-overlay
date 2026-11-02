@@ -28,6 +28,7 @@ public class EffectsService extends Service {
         @Override public void onReceive(Context context,Intent intent){applyVisibility();if(view!=null)view.refresh();}
     };
     public static void setStudioVisible(boolean value){studioVisible=value;if(current!=null)current.applyVisibility();}
+    public static void refreshVisibility(){if(current!=null)current.applyVisibility();}
     public static boolean isActive(){return current!=null&&current.view!=null&&current.view.isAttachedToWindow();}
     @Override public void onCreate(){
         super.onCreate();current=this;prefs=getSharedPreferences("snowglobe",MODE_PRIVATE);
@@ -72,7 +73,7 @@ public class EffectsService extends Service {
         if(view==null)return;
         PowerManager power=getSystemService(PowerManager.class);KeyguardManager keyguard=getSystemService(KeyguardManager.class);
         boolean allowed=Settings.canDrawOverlays(this)&&prefs.getBoolean("effectsEnabled",true);
-        boolean show=allowed&&!studioVisible&&power.isInteractive()&&!keyguard.isKeyguardLocked();
+        boolean show=allowed&&!studioVisible&&power.isInteractive()&&!keyguard.isKeyguardLocked()&&!SnowWallpaperService.hasVisibleScene();
         view.setVisibility(show?View.VISIBLE:View.GONE);
         if(!allowed){state("permission_required");stopSelf();}
     }

@@ -37,10 +37,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            gradle --no-daemon :app:connectedDebugAndroidTest
-            mkdir -p qa-screenshots
-            adb pull /sdcard/Android/data/com.snowglobe.overlay/files/screenshots qa-screenshots
+          script: bash scripts/run_device_checks.sh
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -101,6 +98,8 @@ jobs:
           VERSION=$(python3 -c "import json; d=json.load(open('app/build/reports/release-metadata.json')); print(d['versionName']+'-build'+str(d['versionCode']))")
           cp "$AAB" "release/SnowGlobe-$VERSION.aab"
           cp app/build/reports/release-metadata.json release/
+          cp "$RUNNER_TEMP/manifest.xml" release/AndroidManifest.xml
+          cp "$RUNNER_TEMP/signature.txt" release/signature-check.txt
           cd release && sha256sum *.aab > SHA256SUMS.txt
       - name: Remove temporary signing key
         if: always()

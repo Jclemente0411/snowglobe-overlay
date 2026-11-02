@@ -17,6 +17,7 @@ public class StudioSmokeTest {
         Context context=ApplicationProvider.getApplicationContext();
         context.getSharedPreferences("snowglobe",0).edit().putBoolean("effectsEnabled",false).putString("selectedScene","Custom").commit();
         UiDevice device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
+        Configurator.getInstance().setWaitForIdleTimeout(500);
         File screenshots=new File(context.getExternalFilesDir(null),"screenshots");assertTrue(screenshots.mkdirs()||screenshots.isDirectory());
         try(ActivityScenario<StudioActivity> activity=ActivityScenario.launch(StudioActivity.class)){
             assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),15000));
@@ -33,7 +34,6 @@ public class StudioSmokeTest {
             device.findObject(By.text("Home")).click();
             assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),5000));
         }
-        // Accessibility check: larger system text must still allow navigation.
         try {
             device.executeShellCommand("settings put system font_scale 1.3");
             try(ActivityScenario<StudioActivity> activity=ActivityScenario.launch(StudioActivity.class)){

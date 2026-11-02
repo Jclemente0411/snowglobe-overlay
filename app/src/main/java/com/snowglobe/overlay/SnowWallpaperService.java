@@ -12,6 +12,8 @@ import android.view.*;
 
 /** System-selected wallpaper, not an overlay above the secure keyguard. */
 public class SnowWallpaperService extends WallpaperService {
+    private static int visibleScenes=0;
+    public static boolean hasVisibleScene(){return visibleScenes>0;}
     @Override public Engine onCreateEngine(){return new SnowEngine();}
     private final class SnowEngine extends Engine implements Choreographer.FrameCallback {
         private SharedPreferences prefs;
@@ -19,6 +21,12 @@ public class SnowWallpaperService extends WallpaperService {
         private boolean visible=false,surfaceReady=false,interactive=false,posted=false,powerSave=false;
         private long presented=0L,lastTouch=0L;
         private int frames=0;
+        private boolean countedVisible=false;
+        private void countVisibility(boolean shown){
+            if(countedVisible==shown)return;
+            countedVisible=shown;visibleScenes=Math.max(0,visibleScenes+(shown?1:-1));
+            EffectsService.refreshVisibility();
+        }
         private final SharedPreferences.OnSharedPreferenceChangeListener changes=(p,key)->{
             if(key!=null&&!key.startsWith("_")){renderer.apply(new SceneSettings(p));requestFrame();}
         };
@@ -27,7 +35,7 @@ public class SnowWallpaperService extends WallpaperService {
                 boolean wasInteractive=interactive;
                 readPower();
                 if(!interactive)cancel();
-                else {if(!wasInteractive&&visible)renderer.wake();requestFrame();}
+                else {if(!wasInteractive&&visible){frames=0;renderer.wake();}requestFrame();}
             }
         };
         @Override public void onCreate(SurfaceHolder holder){
@@ -56,7 +64,7 @@ public class SnowWallpaperService extends WallpaperService {
         @Override public void onSurfaceRedrawNeeded(SurfaceHolder holder){super.onSurfaceRedrawNeeded(holder);render();}
         @Override public void onSurfaceDestroyed(SurfaceHolder holder){surfaceReady=false;cancel();super.onSurfaceDestroyed(holder);}
         @Override public void onVisibilityChanged(boolean shown){
-            visible=shown;cancel();if(shown){readPower();renderer.wake();frames=0;requestFrame();}
+            visible=shown;countVisibility(shown);cancel();if(shown){readPower();renderer.wake();frames=0;requestFrame();}
         }
         @Override public void onTouchEvent(MotionEvent event){
             if(event.getActionMasked()==MotionEvent.ACTION_DOWN){long now=android.os.SystemClock.uptimeMillis();
@@ -89,7 +97,7 @@ public class SnowWallpaperService extends WallpaperService {
         @android.annotation.TargetApi(27)
         @Override public WallpaperColors onComputeColors(){return new WallpaperColors(Color.valueOf(0xff0b2037),Color.valueOf(0xff9df2da),Color.valueOf(0xffffd68c));}
         @Override public void onDestroy(){
-            visible=false;surfaceReady=false;cancel();
+            visible=false;surfaceReady=false;countVisibility(false);cancel();
             if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(changes);
             try{unregisterReceiver(powerChanges);}catch(IllegalArgumentException ignored){}
             super.onDestroy();

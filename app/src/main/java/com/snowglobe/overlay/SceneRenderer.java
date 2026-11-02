@@ -130,12 +130,11 @@ public final class SceneRenderer {
             else {glass.moveTo(42,32);glass.cubicTo(28,45,39,66,48,71);glass.cubicTo(57,66,68,45,54,32);glass.close();}
             p.setShader(new LinearGradient(34,35,62,64,new int[]{0xfff9ffff,col,col,0xff172c3d},new float[]{0,.24f,.66f,1},Shader.TileMode.CLAMP));
             c.drawPath(glass,p);p.setShader(null);
-            p.setColor(0xfffff2cc);p.setAlpha(220);c.drawRoundRect(46.8f,40,49.2f,56,1.1f,1.1f,p);
+            p.setColor(0xfffff2cc);p.setAlpha(220);c.drawRoundRect(46.8f,40,49.2f,shape==2?48:56,1.1f,1.1f,p);
             p.setColor(0xaaffffff);p.setStrokeWidth(1.6f);p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);
-            c.drawLine(40,39,38,48,p);
+            if(shape==2)c.drawLine(45,36,45,42,p);else c.drawLine(40,39,38,48,p);
             bodies[i]=body;halos[i]=halo;
         }
-        // Only one palette is retained. Do not recycle a bitmap still in a display list.
         for(int i=colors.length;i<bodies.length;i++){bodies[i]=null;halos[i]=null;}
     }
     private void drawBulb(Canvas c,float px,float py,float unit,float rotation,int index,float energy,float opacity){
@@ -192,7 +191,7 @@ public final class SceneRenderer {
             float depth=.55f+(i%3)*.32f,px=x[i]*width,py=y[i]*height;
             float rotation=settings.reduced||settings.spin==0?0:angle[i];
             if(total>0&&i%4==0){int type=settings.decorations[(i/4)%total];
-                if(type==4){float e=settings.brightness*MotionMath.brightness(settings.fallingBlink?settings.motion:0,time,i,settings.tempo,settings.reduced);
+                if(type==4){float e=settings.brightness*MotionMath.brightness(settings.fallingBlink?2:0,time,i,settings.tempo,settings.reduced);
                     drawBulb(c,px,py,dp(.47f)*settings.size*depth,rotation,i,e,.95f);}
                 else {float r=dp(13)*settings.size*depth;c.save();c.translate(px,py);c.rotate(rotation);destination.set(-r,-r,r,r);bitmapPaint.setAlpha((int)(220*depth/1.2f));c.drawBitmap(decorations[type],null,destination,bitmapPaint);c.restore();}
             }else if(snow)drawFlake(c,px,py,dp(3.4f)*settings.size*depth,rotation,(int)(150+depth*80));
