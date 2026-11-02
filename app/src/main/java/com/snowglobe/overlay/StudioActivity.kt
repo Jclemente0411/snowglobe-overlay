@@ -6,6 +6,8 @@ import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
+import android.app.WallpaperManager
+import android.content.ComponentName
 import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -101,6 +103,17 @@ class StudioActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    private fun openWallpaperPicker() {
+        try {
+            startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                    ComponentName(this@StudioActivity, SnowWallpaperService::class.java))
+            })
+        } catch (_: Exception) {
+            startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+        }
+    }
+
     private fun setBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); settingsRevision++ }
     private fun setNum(key: String, value: Int) { prefs.edit().putInt(key, value).apply(); settingsRevision++ }
 
@@ -157,6 +170,11 @@ class StudioActivity : ComponentActivity() {
                                 item { Hero() }
                                 item { SectionHeader("Find your Christmas mood", "Tap a scene to transform your atmosphere") }
                                 item { Scenes() }
+                                item { PremiumPanel("Lock screen snowfall", "Set SnowGlobe as a live wallpaper for your lock screen") {
+                                    Text("Android controls which screens use a live wallpaper. Choose lock screen when the system offers that option.", color=Subtle, style=MaterialTheme.typography.bodySmall)
+                                    Spacer(Modifier.height(12.dp))
+                                    OutlinedButton(onClick={openWallpaperPicker}, modifier=Modifier.fillMaxWidth()) { Text("Set SnowGlobe live wallpaper") }
+                                } }
                                 item { SectionHeader("Make it yours", "Fine-tune the magic in just a few taps") }
                                 item { QuickModules(onSelect={page=it}) }
                                 item { PremiumPanel("Comfort & performance", "A calmer atmosphere when you want it") {
