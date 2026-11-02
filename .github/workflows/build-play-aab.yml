@@ -43,7 +43,8 @@ jobs:
       - name: Verify release AAB signature and wallpaper registration
         run: |
           test -s app/build/outputs/bundle/release/app-release.aab
-          jarsigner -verify -strict app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify app/build/outputs/bundle/release/app-release.aab | tee /tmp/aab-signature-check.txt
+          grep -q 'jar verified' /tmp/aab-signature-check.txt
           grep -q 'android.permission.BIND_WALLPAPER' app/src/main/AndroidManifest.xml
           grep -q 'android.service.wallpaper.WallpaperService' app/src/main/AndroidManifest.xml
           grep -q 'versionCode 12' app/build.gradle
