@@ -40,6 +40,14 @@ jobs:
           unzip -q gradle-8.9-bin.zip
           ./gradle-8.9/bin/gradle --no-daemon :app:bundleRelease :app:lintRelease
           test -s app/build/outputs/bundle/release/app-release.aab
+      - name: Verify release AAB signature and wallpaper registration
+        run: |
+          test -s app/build/outputs/bundle/release/app-release.aab
+          jarsigner -verify -strict app/build/outputs/bundle/release/app-release.aab
+          grep -q 'android.permission.BIND_WALLPAPER' app/src/main/AndroidManifest.xml
+          grep -q 'android.service.wallpaper.WallpaperService' app/src/main/AndroidManifest.xml
+          grep -q 'versionCode 12' app/build.gradle
+          grep -q "versionName '0.12.0'" app/build.gradle
       - uses: actions/upload-artifact@v4
         with:
           name: SnowGlobe-play-internal-aab
