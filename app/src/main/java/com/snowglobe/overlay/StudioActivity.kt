@@ -1,6 +1,6 @@
 package com.snowglobe.overlay
 
-import android.app.Activity
+import androidx.activity.ComponentActivity
 import android.content.Intent
 import android.content.Context
 import android.content.SharedPreferences
@@ -34,7 +34,7 @@ private val Mint = Color(0xFF98EAD8)
 private val TextWhite = Color(0xFFF4F8FF)
 private val Muted = Color(0xFFB8C8D9)
 
-class StudioActivity : Activity() {
+class StudioActivity : ComponentActivity() {
     private lateinit var prefs: SharedPreferences
     private var overlay: SnowView? = null
     private var manager: WindowManager? = null
