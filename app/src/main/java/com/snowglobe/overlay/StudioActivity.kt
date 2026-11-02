@@ -310,13 +310,23 @@ class StudioActivity: ComponentActivity() {
         }
     }
     @Composable private fun Choice(title: String,key: String,options: List<String>,default: Int) {
-        val observed=revision;val index=remember(observed,key){prefs.getInt(key,default).coerceIn(options.indices)}
+        val observed=revision
+        val index=remember(observed,key){prefs.getInt(key,default).coerceIn(options.indices)}
         var open by remember {mutableStateOf(false)}
         Column(Modifier.fillMaxWidth().padding(vertical=10.dp)) {
-            Text(title,style=MaterialTheme.typography.bodyLarge);Spacer(Modifier.height(8.dp))
+            Text(title,style=MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(8.dp))
             Box {
-                OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {Text(options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))}
-                DropdownMenu(expanded=open,onDismissRequest={open=false}) { options.forEachIndexed { i,label->DropdownMenuItem(text={Text(label)},onClick={changeNumber(key,i);open=false}) } }
+                OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {
+                    Text(options[index],Modifier.weight(1f))
+                    Text("\u2304",Modifier.padding(start=8.dp))
+                }
+                DropdownMenu(expanded=open,onDismissRequest={open=false}) {
+                    options.forEachIndexed { i,label ->
+                        DropdownMenuItem(text={Text(label)},onClick={changeNumber(key,i);open=false})
+                    }
+                }
+            }
         }
     }
 }
