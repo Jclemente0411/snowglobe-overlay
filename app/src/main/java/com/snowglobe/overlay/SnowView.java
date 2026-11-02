@@ -3,6 +3,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.*;
 import android.view.View;
+import android.view.Choreographer;
 import java.util.Random;
 
 public class SnowView extends View {
@@ -11,10 +12,18 @@ public class SnowView extends View {
  private final Random rng=new Random(2026);
  private final float[] x=new float[100], y=new float[100], drift=new float[100], velocity=new float[100], scale=new float[100];
  private final int[] kind=new int[100];
- private long last=System.nanoTime(); private float clock=0;
+ private long last=0L; private float clock=0;
+ private boolean framePosted=false;
+ private final Choreographer.FrameCallback frameCallback=new Choreographer.FrameCallback(){
+  @Override public void doFrame(long frameTimeNanos){framePosted=false;if(!isShown())return;invalidate();scheduleFrame();}
+ };
+ private void scheduleFrame(){if(!framePosted&&isShown()){framePosted=true;Choreographer.getInstance().postFrameCallback(frameCallback);}}
+ private void cancelFrame(){if(framePosted){Choreographer.getInstance().removeFrameCallback(frameCallback);framePosted=false;}}
+ @Override protected void onAttachedToWindow(){super.onAttachedToWindow();last=0L;scheduleFrame();}
+ @Override protected void onDetachedFromWindow(){cancelFrame();super.onDetachedFromWindow();}
  private static final int[][] COLORS={{0xfff44336,0xff42d66c,0xffffd65b,0xff50bbff},{0xff66d8ff,0xffdffaff,0xffaabaff,0xffffffff},{0xffffcc58,0xffffa15a,0xffffedb0,0xffffffff},{0xffff5050,0xff47e879,0xffffd45a,0xff54bfff,0xffff77d6}};
  public SnowView(Context c,SharedPreferences settings){super(c);prefs=settings;setLayerType(View.LAYER_TYPE_HARDWARE,null);for(int i=0;i<x.length;i++)reset(i,true);}
- @Override protected void onVisibilityChanged(View changedView,int visibility){super.onVisibilityChanged(changedView,visibility);last=System.nanoTime();if(visibility==View.VISIBLE)postInvalidate();}
+ @Override protected void onVisibilityChanged(View changedView,int visibility){super.onVisibilityChanged(changedView,visibility);last=0L;if(visibility==View.VISIBLE)scheduleFrame();else cancelFrame();}
  private void reset(int i,boolean initial){x[i]=rng.nextFloat();y[i]=initial?rng.nextFloat():-.03f-rng.nextFloat()*.25f;velocity[i]=.45f+rng.nextFloat()*1.3f;scale[i]=.65f+rng.nextFloat()*1.05f;drift[i]=rng.nextFloat()*6.28f;kind[i]=rng.nextInt(7);}
  private void color(int value){p.setStyle(Paint.Style.FILL);p.setColor(value);p.setAlpha(255);p.clearShadowLayer();}
  private void stroke(int value,float width){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(width);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setColor(value);p.setAlpha(255);p.clearShadowLayer();}
@@ -37,7 +46,7 @@ public class SnowView extends View {
  }c.restore();}
  private void lights(Canvas c,int w,int[] colors,int design,float size){int count=Math.max(7,(int)(w/(42f*size)));float step=w/(float)count;float base=23*size;stroke(0xff255b43,Math.max(2,2.5f*size));Path wire=new Path();wire.moveTo(0,base);for(int i=0;i<=count;i++){float xx=i*step;float yy=base+(design==0?13:design==1?29:19)*size*(float)Math.sin(i*Math.PI/4f);wire.lineTo(xx,yy);}c.drawPath(wire,p);
  for(int i=0;i<count;i++){float bx=(i+.5f)*step;float by=base+(design==0?13:design==1?29:19)*size*(float)Math.sin((i+.5f)*Math.PI/4f);int col=colors[i%colors.length];float glow=prefs.getBoolean("twinkle",true)?(float)(.32+.68*Math.pow(Math.sin(clock*2.5+i*1.3),2)):1f;color(col);p.setAlpha((int)(255*glow));if(design==2){c.drawCircle(bx,by+12*size,8*size,p);}else{c.drawOval(bx-6*size,by+4*size,bx+6*size,by+21*size,p);}p.clearShadowLayer();color(0xffd9e3d5);c.drawRoundRect(bx-4*size,by,bx+4*size,by+5*size,2,2,p);}}
- @Override protected void onDraw(Canvas c){super.onDraw(c);long now=System.nanoTime();float dt=Math.max(0,Math.min(.05f,(now-last)/1e9f));last=now;clock+=dt;int w=getWidth(),h=getHeight();if(w==0||h==0)return;
+ @Override protected void onDraw(Canvas c){super.onDraw(c);long now=System.nanoTime();float dt=last==0L?0f:Math.max(0,Math.min(.05f,(now-last)/1e9f));last=now;clock+=dt;int w=getWidth(),h=getHeight();if(w==0||h==0)return;
  int palette=Math.max(0,Math.min(3,prefs.getInt("palette",0)));int[] colors=COLORS[palette];float sz=.65f+prefs.getInt("lightSize",55)/100f;int design=prefs.getInt("lightDesign",0);
  if(prefs.getBoolean("lights",true))lights(c,w,colors,design,sz);
  boolean snow=prefs.getBoolean("snow",true);boolean candy=prefs.getBoolean("candy",false),gifts=prefs.getBoolean("gifts",false),trees=prefs.getBoolean("trees",false),snowmen=prefs.getBoolean("snowmen",false),bulbs=prefs.getBoolean("bulbs",false),stars=prefs.getBoolean("stars",false),confetti=prefs.getBoolean("confetti",false);
@@ -48,6 +57,6 @@ public class SnowView extends View {
  float vy=(decoration?.075f:.055f)*velocity[i]*speedMultiplier; y[i]+=dt*vy;x[i]+=(float)Math.sin(clock*.6f+drift[i])*dt*.003f;if(y[i]>1.08f||x[i]<-.06f||x[i]>1.06f)reset(i,false);
  float px=x[i]*w,py=y[i]*h;if(selected>=0)ornament(c,selected,px,py,(.6f+sizeMultiplier*.55f)*scale[i]);else if(snow)snowflake(c,px,py,(2.5f+sizeMultiplier*4.5f)*scale[i],snowStyle);
  }
- if(isShown())postInvalidateDelayed(prefs.getBoolean("gentleMotion",true)?50:33);
+ // Display-synchronized frames are scheduled by Choreographer, not fixed-delay timers.
  }
 }
