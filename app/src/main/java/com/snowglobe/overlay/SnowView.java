@@ -48,7 +48,8 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     @Override protected void onVisibilityChanged(View changed,int visibility){super.onVisibilityChanged(changed,visibility);if(renderer!=null)updateSchedule();}
     @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);if(renderer!=null)updateSchedule();}
     private boolean visible(){return enabled&&powerInteractive()&&isAttachedToWindow()&&isShown()&&getWindowVisibility()==VISIBLE;}
-    private int fps(){Display display=getDisplay();float hz=display==null?60f:display.getRefreshRate();\n        return RenderPolicy.fps(renderer.settings().quality,preview,power.powerSaver,power.thermal,hz);}
+    private int fps(){Display display=getDisplay();float hz=display==null?60f:display.getRefreshRate();
+        return RenderPolicy.fps(renderer.settings().quality,preview,power.powerSaver,power.thermal,hz);}
     private void updateSchedule(){
         if(!visible()){cancel();return;}
         if(!posted&&renderer.animated()){
