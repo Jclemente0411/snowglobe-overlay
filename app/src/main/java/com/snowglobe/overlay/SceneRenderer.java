@@ -37,6 +37,7 @@ public final class SceneRenderer {
     }
     public void apply(SceneSettings value) {
         settings=value;
+        if(value.reduced){wake=0;for(int i=0;i<BURSTS;i++)ba[i]=10f;}
         if(palette!=value.palette||shape!=value.bulbShape){palette=value.palette;shape=value.bulbShape;buildBulbs();}
         layoutLights();
     }

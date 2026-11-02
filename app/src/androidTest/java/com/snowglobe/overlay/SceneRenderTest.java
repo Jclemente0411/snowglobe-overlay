@@ -1,5 +1,4 @@
 package com.snowglobe.overlay;
-
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
@@ -21,4 +20,5 @@ public class SceneRenderTest {
     @Test public void everyBulbShapeRenders(){for(int shape=0;shape<3;shape++){prefs.edit().putBoolean("snow",false).putInt("bulbShape",shape).putInt("lightBrightness",100).commit();assertTrue(visiblePixels(scene())>100);}}
     @Test public void randomLightsAppearWithoutSnowOrStrand(){prefs.edit().putBoolean("snow",false).putBoolean("lights",false).putBoolean("screenSparkles",true).putInt("sparkleDensity",100).commit();SceneRenderer r=scene();for(int i=1;i<500;i++)r.advance(i*16666667L);assertTrue(visiblePixels(r)>20);}
     @Test public void allTravelDirectionsRemainDrawable(){for(int dir=0;dir<8;dir++){prefs.edit().putInt("particleDirection",dir).putBoolean("lights",false).commit();SceneRenderer r=scene();for(int i=1;i<1200;i++)r.advance(i*16666667L);assertTrue("direction "+dir,visiblePixels(r)>30);}}
+    @Test public void reducingMotionStopsAnActiveTouchBurst(){prefs.edit().putBoolean("snow",false).putBoolean("lights",false).commit();SceneRenderer r=scene();r.touch(180,400);assertTrue(r.animated());prefs.edit().putBoolean("reduceMotion",true).commit();r.apply(new SceneSettings(prefs));assertFalse(r.animated());}
 }

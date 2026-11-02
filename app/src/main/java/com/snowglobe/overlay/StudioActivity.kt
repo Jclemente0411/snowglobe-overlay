@@ -1,5 +1,4 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
-
 package com.snowglobe.overlay
 
 import android.Manifest
@@ -14,6 +13,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,7 +25,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -66,34 +65,32 @@ class StudioActivity: ComponentActivity() {
     private var setupError by mutableStateOf<String?>(null)
     private val changes=SharedPreferences.OnSharedPreferenceChangeListener { _,_ -> revision++ }
     private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()) { startWhenAllowed() }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle=SystemBarStyle.dark(android.graphics.Color.rgb(8,19,34)))
         prefs=getSharedPreferences("snowglobe",Context.MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(changes)
+        if(prefs.getInt("_settingsSchema",0)<14) {
+            val migration=prefs.edit().putInt("_settingsSchema",14).putString("selectedScene","Custom")
+            if(!prefs.contains("lightMotion"))migration.putInt("lightMotion",if(prefs.getBoolean("twinkle",true))1 else 0)
+            migration.apply()
+        }
         setContent { Studio() }
     }
     override fun onResume() {
-        super.onResume()
-        EffectsService.setStudioVisible(true)
-        permission=Settings.canDrawOverlays(this)
-        checkWallpaper()
-        startWhenAllowed()
-        revision++
+        super.onResume();EffectsService.setStudioVisible(true)
+        permission=Settings.canDrawOverlays(this);checkWallpaper();startWhenAllowed();revision++
     }
     override fun onStop() { EffectsService.setStudioVisible(false);super.onStop() }
     override fun onDestroy() { prefs.unregisterOnSharedPreferenceChangeListener(changes);super.onDestroy() }
-
     private fun startWhenAllowed() {
         if(!prefs.getBoolean("effectsEnabled",true)||!Settings.canDrawOverlays(this))return
-        try {
-            if(!EffectsService.isActive())startForegroundService(Intent(this,EffectsService::class.java).setAction(EffectsService.START))
-        } catch(_: RuntimeException) { setupError="Android could not start the effects. Tap Start again while SnowGlobe is open." }
+        try { if(!EffectsService.isActive())startForegroundService(Intent(this,EffectsService::class.java).setAction(EffectsService.START)) }
+        catch(_: RuntimeException) { setupError="Android could not start the effects. Tap Start again while SnowGlobe is open." }
     }
     private fun enable(value: Boolean) {
-        setupError=null
-        prefs.edit().putBoolean("effectsEnabled",value).apply()
+        setupError=null;prefs.edit().putBoolean("effectsEnabled",value).apply()
         if(!value){stopService(Intent(this,EffectsService::class.java));return}
         if(!Settings.canDrawOverlays(this)) {
             try {startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName")))}
@@ -106,10 +103,8 @@ class StudioActivity: ComponentActivity() {
     }
     private fun checkWallpaper() {
         lockApplied=false;lockCheckAvailable=Build.VERSION.SDK_INT>=34
-        if(Build.VERSION.SDK_INT>=34)try {
-            val info=WallpaperManager.getInstance(this).getWallpaperInfo(WallpaperManager.FLAG_LOCK)
-            lockApplied=info?.let { it.packageName==packageName && it.serviceName==SnowWallpaperService::class.java.name } ?: false
-        } catch(_: RuntimeException){lockCheckAvailable=false}
+        if(Build.VERSION.SDK_INT>=34)try { lockApplied=WallpaperStatus.isAppliedToLockScreen(this) }
+        catch(_: RuntimeException){lockCheckAvailable=false}
     }
     private fun wallpaperPicker() {
         setupError=null
@@ -144,7 +139,6 @@ class StudioActivity: ComponentActivity() {
         listOf("candy","gifts","trees","snowmen","bulbs","stars","confetti").forEach { e.putBoolean(it,party) }
         e.apply()
     }
-
     @Composable private fun Studio() {
         val observed=revision
         val enabled=remember(observed){prefs.getBoolean("effectsEnabled",true)}
@@ -198,9 +192,7 @@ class StudioActivity: ComponentActivity() {
                                 item { ScenePreview() }
                                 item { PanelCard("Snowfall","Soft layers with individual depth and motion.") {
                                     Toggle("Falling snow","snow",true)
-                                    SliderControl("Speed","speed",50)
-                                    SliderControl("Size","size",50)
-                                    SliderControl("Amount","density",55)
+                                    SliderControl("Speed","speed",50);SliderControl("Size","size",50);SliderControl("Amount","density",55)
                                     Choice("Crystal shape","snowStyle",listOf("Soft snow","Six-point crystal","Minimal crystal"),1)
                                 } }
                                 item { PanelCard("Motion","The same controls move snow and decorations.") {
@@ -216,8 +208,7 @@ class StudioActivity: ComponentActivity() {
                                     Choice("Hanging style","lightDesign",listOf("Soft swags","Deep garland","Straight strand"),0)
                                     Choice("Colors","palette",listOf("Classic Christmas","Winter ice","Warm gold","Candy colors"),0)
                                     Choice("Light animation","lightMotion",listOf("Steady","Soft twinkle","Slow blink","Traveling wave","Alternating"),1)
-                                    SliderControl("Bulb size","lightSize",55)
-                                    SliderControl("Brightness","lightBrightness",75)
+                                    SliderControl("Bulb size","lightSize",55);SliderControl("Brightness","lightBrightness",75)
                                     var advanced by rememberSaveable {mutableStateOf(false)}
                                     TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide fine tuning" else "Fine tune glow & timing")}
                                     if(advanced){SliderControl("Glow","lightGlow",55);SliderControl("Animation pace","lightTempo",30)}
@@ -243,16 +234,13 @@ class StudioActivity: ComponentActivity() {
         }
     }
     @Composable private fun PreviewCard(enabled: Boolean) {
-        val observed=revision
-        val active=EffectsService.isActive()
-        val state=prefs.getString("_serviceState","")
+        val observed=revision;val active=EffectsService.isActive();val state=prefs.getString("_serviceState","")
         PanelCard("Your Christmas, alive","The preview below uses the actual effects engine.") {
             Text(when { !permission->"Overlay permission needed";state=="error"->"Effects need attention";active->"On - preview while you customize";enabled->"Starting effects...";else->"Paused - preview only" },
                 style=MaterialTheme.typography.labelLarge,color=if(active)Mint else Gold)
-            Spacer(Modifier.height(12.dp));ScenePreview()
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp));ScenePreview();Spacer(Modifier.height(16.dp))
             Button(onClick={enable(!active||!permission)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)) {
-                Text(if(!permission)"Allow display over apps" else if(active)"Pause Christmas magic" else "Start Christmas magic",fontWeight=FontWeight.Bold)
+                Text(if(!permission)"Allow display over apps" else if(active)"Pause over-app effects" else "Start over-app effects",fontWeight=FontWeight.Bold)
             }
             Spacer(Modifier.height(8.dp))
             Text("Over-app effects appear when you leave SnowGlobe. Your home wallpaper stays unchanged.",style=MaterialTheme.typography.bodySmall,color=Muted)
@@ -260,8 +248,7 @@ class StudioActivity: ComponentActivity() {
         }
     }
     @Composable private fun ScenePreview() {
-        val context=LocalContext.current
-        val lifecycle=LocalLifecycleOwner.current.lifecycle
+        val context=LocalContext.current;val lifecycle=LocalLifecycleOwner.current.lifecycle
         val scene=remember { SnowView(context,prefs).apply {setPreviewMode(true);contentDescription="Live scene preview. Tap for a small snow flurry."} }
         DisposableEffect(lifecycle,scene) {
             val observer=LifecycleEventObserver { _,_ -> scene.setAnimating(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
@@ -272,26 +259,21 @@ class StudioActivity: ComponentActivity() {
     }
     @Composable private fun LockScreenPanel() {
         PanelCard("Lock-screen snowfall","Over-app permission does not activate a live wallpaper.") {
-            Text(when {lockApplied->"SnowGlobe is selected for the lock screen";lockCheckAvailable->"Not applied to the lock screen";else->"Confirm the destination in Android's wallpaper picker"},color=if(lockApplied)Mint else Gold,
-                style=MaterialTheme.typography.titleSmall)
+            Text(when {lockApplied->"SnowGlobe is selected for the lock screen";lockCheckAvailable->"Not applied to the lock screen";else->"Confirm the destination in Android's wallpaper picker"},color=if(lockApplied)Mint else Gold,style=MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(10.dp))
             Text("This replaces the selected wallpaper with SnowGlobe's winter scene. In the system picker choose Lock screen, or Home and lock screen when that is the available option.",color=Muted,style=MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(12.dp))
             OutlinedButton(onClick={wallpaperPicker()},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Set lock-screen wallpaper")}
-            Toggle("Snow on wallpaper","wallpaperSnow",true)
-            Toggle("Flurry when the screen wakes","wakeSnow",true)
+            Toggle("Snow on wallpaper","wallpaperSnow",true);Toggle("Flurry when the screen wakes","wakeSnow",true)
             Text("Wake snowfall does not need a fingerprint tap. Touch flurries work only where Android sends wallpaper touches. Always-on display stays still to save power.",style=MaterialTheme.typography.bodySmall,color=Muted)
-            val error=prefs.getString("_wallpaperError",null)
-            if(lockApplied&&error!=null)Text(error,color=Gold)
+            val error=prefs.getString("_wallpaperError",null);if(lockApplied&&error!=null)Text(error,color=Gold)
         }
     }
     @Composable private fun Scenes() {
-        val observed=revision
-        val selected=remember(observed){prefs.getString("selectedScene","Custom")}
+        val observed=revision;val selected=remember(observed){prefs.getString("selectedScene","Custom")}
         Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
             listOf("Classic Christmas" to "Red, green and vintage glass","Winter Wonderland" to "Icy globes and peaceful crystals","Golden Evening" to "Warm fairy lights and gentle snow","North Pole Party" to "Falling bulbs, gifts and floating lights").forEach { (name,description) ->
-                val chosen=selected==name
-                val color by animateColorAsState(if(chosen)Color(0xFF24484C) else Panel,label="scene-selection")
+                val chosen=selected==name;val color by animateColorAsState(if(chosen)Color(0xFF24484C) else Panel,label="scene-selection")
                 Surface(onClick={applyScene(name)},modifier=Modifier.fillMaxWidth(),color=color,shape=RoundedCornerShape(22.dp),border=if(chosen)BorderStroke(1.dp,Mint) else null) {
                     Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                         Column(Modifier.weight(1f)){Text(name,fontWeight=FontWeight.SemiBold);Text(description,style=MaterialTheme.typography.bodySmall,color=Muted)}
@@ -310,41 +292,31 @@ class StudioActivity: ComponentActivity() {
         }
     }
     @Composable private fun Toggle(title: String,key: String,default: Boolean,detail: String?=null) {
-        val observed=revision
-        val checked=remember(key,observed){prefs.getBoolean(key,default)}
+        val observed=revision;val checked=remember(key,observed){prefs.getBoolean(key,default)}
         Row(Modifier.fillMaxWidth().heightIn(min=60.dp).toggleable(value=checked,role=Role.Switch,onValueChange={changeBoolean(key,it)}).padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.bodyLarge);if(detail!=null)Text(detail,style=MaterialTheme.typography.bodySmall,color=Muted)}
             Switch(checked=checked,onCheckedChange=null)
         }
     }
     @Composable private fun SliderControl(title: String,key: String,default: Int) {
-        val observed=revision
-        val saved=remember(observed,key){prefs.getInt(key,default).coerceIn(0,100)}
-        var dragging by remember {mutableStateOf(false)}
-        var value by remember(key){mutableFloatStateOf(saved.toFloat())}
+        val observed=revision;val saved=remember(observed,key){prefs.getInt(key,default).coerceIn(0,100)}
+        var dragging by remember {mutableStateOf(false)};var value by remember(key){mutableFloatStateOf(saved.toFloat())}
         LaunchedEffect(saved){if(!dragging)value=saved.toFloat()}
         Column(Modifier.padding(vertical=8.dp)) {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-                Text(title,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
-                Text("${value.toInt()}%",color=Mint,style=MaterialTheme.typography.labelLarge)
+                Text(title,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge);Text("${value.toInt()}%",color=Mint,style=MaterialTheme.typography.labelLarge)
             }
             Slider(value=value,valueRange=0f..100f,onValueChange={dragging=true;value=it},onValueChangeFinished={dragging=false;changeNumber(key,value.toInt())},modifier=Modifier.heightIn(min=48.dp))
         }
     }
     @Composable private fun Choice(title: String,key: String,options: List<String>,default: Int) {
-        val observed=revision
-        val index=remember(observed,key){prefs.getInt(key,default).coerceIn(options.indices)}
+        val observed=revision;val index=remember(observed,key){prefs.getInt(key,default).coerceIn(options.indices)}
         var open by remember {mutableStateOf(false)}
         Column(Modifier.fillMaxWidth().padding(vertical=10.dp)) {
             Text(title,style=MaterialTheme.typography.bodyLarge);Spacer(Modifier.height(8.dp))
             Box {
-                OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {
-                    Text(options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))
-                }
-                DropdownMenu(expanded=open,onDismissRequest={open=false}) {
-                    options.forEachIndexed { i,label->DropdownMenuItem(text={Text(label)},onClick={changeNumber(key,i);open=false}) }
-                }
-            }
+                OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {Text(options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))}
+                DropdownMenu(expanded=open,onDismissRequest={open=false}) { options.forEachIndexed { i,label->DropdownMenuItem(text={Text(label)},onClick={changeNumber(key,i);open=false}) } }
         }
     }
 }

@@ -32,7 +32,7 @@ public class EffectsService extends Service {
     public static boolean isActive(){return current!=null&&current.view!=null&&current.view.isAttachedToWindow();}
     @Override public void onCreate(){
         super.onCreate();current=this;prefs=getSharedPreferences("snowglobe",MODE_PRIVATE);
-        prefs.registerOnSharedPreferenceChangeListener(settingsChanged);
+        prefs.registerOnSharedPreferenceChangeListener(settingsChanged);state("starting");
         NotificationChannel channel=new NotificationChannel(CHANNEL,"Christmas effects",NotificationManager.IMPORTANCE_LOW);
         channel.setDescription("Control the Christmas effects you enabled");channel.setShowBadge(false);
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
