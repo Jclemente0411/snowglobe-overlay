@@ -46,7 +46,11 @@ public class ChristmasMagicTest {
             device.swipe(cx,(int)(h*.76f),cx,(int)(h*.35f),16);
             assertTrue("Pixel setup must be visible",device.wait(Until.hasObject(By.text("Pixel setup")),10000));
             screenshot("17-pixel-setup-summary.png");
-            device.swipe(cx,(int)(h*.80f),cx,(int)(h*.26f),18);
+            // Both sections are visible after a single scroll on Pixel 6 emulators.
+            // Do not scroll past the carousel before asserting its presence.
+            if(!device.hasObject(By.text("Christmas magic"))){
+                device.swipe(cx,(int)(h*.68f),cx,(int)(h*.52f),12);
+            }
             assertTrue("Christmas scene section must be visible",device.wait(Until.hasObject(By.text("Christmas magic")),10000));
             screenshot("17-curated-scenes.png");
             assertFalse(EffectsService.isActive());
