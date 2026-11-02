@@ -115,7 +115,7 @@ class StudioActivity : ComponentActivity() {
                         when(page) {
                             0 -> {
                                 item { Panel("Christmas magic","Beautiful effects over your existing wallpaper") {
-                                    Text(if(running && Settings.canDrawOverlays(this))"●  Effects ready — press Home to enjoy" else "○  Effects paused or awaiting permission",color=Mint)
+                                    Text(if(running && Settings.canDrawOverlays(this@StudioActivity))"●  Effects ready — press Home to enjoy" else "○  Effects paused or awaiting permission",color=Mint)
                                     Spacer(Modifier.height(18.dp))
                                     Button(onClick={enable(true)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(20.dp)) { Text("Start Christmas magic") }
                                     Spacer(Modifier.height(8.dp))
