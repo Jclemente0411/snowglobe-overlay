@@ -115,7 +115,7 @@ class StudioActivity : ComponentActivity() {
                         when(page) {
                             0 -> {
                                 item { Panel("Christmas magic","Beautiful effects over your existing wallpaper") {
-                                    Text(if(running && Settings.canDrawOverlays(this@StudioActivity))"●  Effects ready — press Home to enjoy" else "○  Effects paused or awaiting permission",color=Mint)
+                                    Text(if(running && Settings.canDrawOverlays(this@StudioActivity))"●  Effects ready — return Home to see them" else "○  Effects paused or awaiting permission",color=Mint)
                                     Spacer(Modifier.height(18.dp))
                                     Button(onClick={enable(true)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(20.dp)) { Text("Start Christmas magic") }
                                     Spacer(Modifier.height(8.dp))
@@ -141,6 +141,7 @@ class StudioActivity : ComponentActivity() {
                                 BoolControl("Animated twinkle","twinkle",true)
                                 PickControl("Strand design","lightDesign",listOf("Festive garland","Draped lights","Retro bulbs"),0)
                                 PickControl("Color theme","palette",listOf("Classic Christmas","Winter Wonderland","Golden glow","Candy rainbow"),0)
+                                PickControl("Light placement","lightPlacement",listOf("Top","Both sides","Bottom","Full perimeter"),0)
                                 NumControl("Bulb size","lightSize",55)
                             } }
                             3 -> item { Panel("Falling decorations","Mix and match festive favorites") {
