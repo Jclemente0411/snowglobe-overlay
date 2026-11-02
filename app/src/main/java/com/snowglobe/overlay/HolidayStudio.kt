@@ -103,8 +103,9 @@ internal class HolidayActions(
                         when(current){
                             0->{
                                 item{HolidayHero(prefs,state,actions,previewActive=sheet==null)}
+                                item{PixelSetupSummary(prefs,state,onDetails={sheet="setup"})}
                                 item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                                    Column(Modifier.weight(1f)){HolidayHeading("Christmas collections");Text("A whole mood, in one tap.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
+                                    Column(Modifier.weight(1f)){HolidayHeading("Christmas magic");Text("Five complete looks, one tap.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
                                     TextButton(onClick={sheet="saved"}){Text("My scenes")}
                                 }}
                                 item{HolidayScenes(prefs,state,actions)}
@@ -144,7 +145,7 @@ internal class HolidayActions(
                                     HolidayChoice(prefs,state,actions,"Bulb shape","bulbShape",listOf("Vintage glass","Round globe","Micro fairy light"),0)
                                     HolidayChoice(prefs,state,actions,"Hanging style","lightDesign",listOf("Soft swags","Deep garland","Straight strand"),0)
                                     HolidayChoice(prefs,state,actions,"Colors","palette",listOf("Classic Christmas","Winter ice","Warm gold","Candy colors"),0)
-                                    HolidayChoice(prefs,state,actions,"Light animation","lightMotion",listOf("Steady","Soft twinkle","Slow blink","Traveling wave","Alternating"),1)
+                                    HolidayChoice(prefs,state,actions,"Light animation","lightMotion",listOf("Steady","Soft twinkle","Slow blink","Traveling wave","Alternating","Vintage incandescent"),1)
                                     HolidaySlider(prefs,state,actions,"Bulb size","lightSize",55);HolidaySlider(prefs,state,actions,"Brightness","lightBrightness",75)
                                     var fine by rememberSaveable{mutableStateOf(false)}
                                     TextButton(onClick={fine=!fine}){Text(if(fine)"Hide fine tuning"else "Fine tune glow & timing")}
@@ -174,7 +175,7 @@ internal class HolidayActions(
                 containerColor=colors.background,contentColor=colors.onBackground){
                 LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.92f).imePadding(),contentPadding=PaddingValues(20.dp,0.dp,20.dp,24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
                     item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                        Text(when(open){"appearance"->"Studio appearance";"saved"->"My Christmas scenes";else->"Settings & safety"},
+                        Text(when(open){"appearance"->"Studio appearance";"saved"->"My Christmas scenes";"setup"->"Set up your Pixel";else->"Settings & safety"},
                             modifier=Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
                         TextButton(onClick={sheet=null}){Text("Done")}
                     }}
@@ -185,7 +186,9 @@ internal class HolidayActions(
                             ids.forEach{id->item{ThemeOption(id,theme==id){appearance.select(id);theme=id}}}
                         }
                         "saved"->{item{SavedHolidayScenes(scenes,state,actions)}}
+                        "setup"->{item{PixelSetupGuide(prefs,state,actions)}}
                         else->{
+                            item{OutlinedButton(onClick={sheet="setup"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pixel setup guide")}}
                             item{HolidayCard("Safe taps & quick control","Pause before shopping or protected screens."){
                                 OutlinedButton(onClick=actions.pauseAndOpenPlay,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pause & open Google Play")}
                                 OutlinedButton(onClick=actions.addTile,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Add Quick Settings control")}
@@ -203,8 +206,8 @@ internal class HolidayActions(
                             item{HolidayCard("Comfort & performance","Keep the atmosphere comfortable."){
                                 HolidayToggle(prefs,state,actions,"Gentle motion","gentleMotion",true,"Less drift and rotation")
                                 HolidayToggle(prefs,state,actions,"Reduce motion","reduceMotion",false,"Still particles, steady lights, no surprise flashes")
-                                HolidayChoice(prefs,state,actions,"Animation quality","qualityMode",listOf("Eco - up to 30 fps","Balanced - up to 60 fps","Smooth - up to 120 fps"),1)
-                                Text("Previews are capped at 30 fps. Battery Saver and heat lower the rendering budget. Actual performance depends on Android and your phone.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                HolidayChoice(prefs,state,actions,"Animation quality","qualityMode",listOf("Eco - up to 30 fps","Balanced - up to 60 fps","Smooth - up to 120 fps","Auto - adapts to your screen"),3)
+                                Text("Auto is recommended. It selects a conservative 30 or 60 fps target from your display; Battery Saver and heat lower the limit further. Smooth is an upper limit, not a guarantee.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                             }}
                             item{Text("All beta features are unlocked. No checkout or paywall is active.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
                         }
@@ -256,6 +259,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
                 }
                 HolidaySprig(Modifier.size(48.dp),c.secondary)
             }
+            Text("Current scene: "+(prefs.getString("selectedScene","Custom")?:"Custom"),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
             Spacer(Modifier.height(14.dp));HolidayPreview(prefs,previewActive,174)
             Spacer(Modifier.height(12.dp))
             Text(when{!state.permission->"Overlay permission needed";service=="error"->"Effects need attention";active->"Over-app effects on";else->"Paused · preview only"},
@@ -290,20 +294,23 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
 @Composable private fun HolidayScenes(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions){
     val c=MaterialTheme.colorScheme
     val chosen=remember(state.revision){prefs.getString("selectedScene","Custom")}
-    val names=listOf("Classic Christmas","Winter Wonderland","Golden Evening","North Pole Party")
-    val details=listOf("Red, green & vintage glass","Cool crystals & quiet snowfall","Warm fairy lights & soft snow","Colorful bulbs, gifts & sparkle")
+    val recipes=remember{SceneCatalog.presets()}
     LazyRow(horizontalArrangement=Arrangement.spacedBy(12.dp)){
-        items(names.size){index->
-            val selected=chosen==names[index]
-            Surface(onClick={actions.preset(names[index])},modifier=Modifier.width(216.dp).semantics{contentDescription="Apply ${names[index]} scene"},
+        items(recipes.size){index->
+            val recipe=recipes[index]
+            val selected=chosen==recipe.name
+            Surface(onClick={actions.preset(recipe.name)},
+                modifier=Modifier.width(222.dp).semantics{contentDescription="Apply "+recipe.name+" scene"},
                 shape=RoundedCornerShape(24.dp),color=if(selected)c.primaryContainer else c.surface,
                 border=BorderStroke(if(selected)2.dp else 1.dp,if(selected)c.primary else c.outlineVariant)){
                 Column{
-                    HolidayArtwork(index,Modifier.fillMaxWidth().height(112.dp))
+                    HolidayArtwork(recipe.illustration,Modifier.fillMaxWidth().height(122.dp))
                     Column(Modifier.padding(16.dp)){
-                        Text(names[index],fontWeight=FontWeight.SemiBold)
-                        Spacer(Modifier.height(3.dp));Text(details[index],style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
-                        Spacer(Modifier.height(10.dp));Text(if(selected)"Selected"else "Apply scene",style=MaterialTheme.typography.labelMedium,color=c.primary)
+                        Text(recipe.name,fontWeight=FontWeight.SemiBold)
+                        Spacer(Modifier.height(3.dp))
+                        Text(recipe.description,style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant,minLines=2)
+                        Spacer(Modifier.height(10.dp))
+                        Text(if(selected)"Selected ✓"else "Apply scene",style=MaterialTheme.typography.labelMedium,color=c.primary)
                     }
                 }
             }

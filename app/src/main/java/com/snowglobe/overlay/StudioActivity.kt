@@ -41,6 +41,8 @@ class StudioActivity:ComponentActivity(){
         prefs=getSharedPreferences("snowglobe",Context.MODE_PRIVATE);scenes=SavedScenesStore(this)
         prefs.registerOnSharedPreferenceChangeListener(changes)
         if(!prefs.contains("effectsEnabled"))prefs.edit().putBoolean("effectsEnabled",false).apply()
+        // Preserve existing quality selections; new installations start with Auto.
+        if(!prefs.contains("qualityMode"))prefs.edit().putInt("qualityMode",3).apply()
         if(prefs.getInt("_settingsSchema",0)<14){
             val migration=prefs.edit().putInt("_settingsSchema",14).putString("selectedScene","Custom")
             if(!prefs.contains("lightMotion"))migration.putInt("lightMotion",if(prefs.getBoolean("twinkle",true))1 else 0)
@@ -129,16 +131,8 @@ class StudioActivity:ComponentActivity(){
         catch(_:IllegalArgumentException){setupError="That saved scene could not be loaded. Save it again."}
     }
     private fun applyScene(scene:String){
+        if(SceneCatalog.find(scene)==null){setupError="This scene is not available.";return}
         captureUndo()
-        val party=scene=="North Pole Party";val winter=scene=="Winter Wonderland";val gold=scene=="Golden Evening"
-        val e=prefs.edit().putString("selectedScene",scene).putBoolean("snow",true).putBoolean("lights",true)
-            .putInt("palette",if(party)3 else if(winter)1 else if(gold)2 else 0)
-            .putInt("lightDesign",if(gold)2 else 0).putInt("bulbShape",if(winter)1 else if(gold)2 else 0)
-            .putInt("lightMotion",if(party)3 else 1).putBoolean("twinkle",true)
-            .putInt("speed",if(party)55 else 32).putInt("size",45).putInt("density",if(party)65 else 42)
-            .putInt("snowStyle",1).putInt("particleDirection",0).putInt("particleWind",20).putInt("particleRotation",22)
-            .putInt("lightBrightness",75).putInt("lightGlow",45).putInt("lightTempo",25)
-            .putBoolean("screenSparkles",party).putInt("sparkleDensity",25).putBoolean("fallingLightBlink",true)
-        listOf("candy","gifts","trees","snowmen","bulbs","stars","confetti").forEach{e.putBoolean(it,party)};e.apply()
+        if(!SceneCatalog.apply(prefs,scene))setupError="Could not apply this scene."
     }
 }
