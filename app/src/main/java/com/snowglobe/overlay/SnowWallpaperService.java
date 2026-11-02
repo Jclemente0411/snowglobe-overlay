@@ -20,7 +20,8 @@ public class SnowWallpaperService extends WallpaperService {
         private SceneRenderer renderer;
         private boolean visible=false,surfaceReady=false,interactive=false,posted=false,powerSave=false;
         private long presented=0L,lastTouch=0L;
-        private int frames=0;
+        private int frames=0,surfaceWidth=1,surfaceHeight=1;
+        private float screenDensity=1,safeTop=0,safeBottom=0;
         private boolean countedVisible=false;
         private void countVisibility(boolean shown){
             if(countedVisible==shown)return;
@@ -32,8 +33,7 @@ public class SnowWallpaperService extends WallpaperService {
         };
         private final BroadcastReceiver powerChanges=new BroadcastReceiver(){
             @Override public void onReceive(Context c,Intent i){
-                boolean wasInteractive=interactive;
-                readPower();
+                boolean wasInteractive=interactive;readPower();
                 if(!interactive)cancel();
                 else {if(!wasInteractive&&visible){frames=0;renderer.wake();}requestFrame();}
             }
@@ -42,7 +42,8 @@ public class SnowWallpaperService extends WallpaperService {
             super.onCreate(holder);
             prefs=getSharedPreferences("snowglobe",MODE_PRIVATE);
             Context display=Build.VERSION.SDK_INT>=29?getDisplayContext():SnowWallpaperService.this;
-            renderer=new SceneRenderer(display.getResources().getDisplayMetrics().density,new SceneSettings(prefs));
+            screenDensity=display.getResources().getDisplayMetrics().density;
+            renderer=new SceneRenderer(screenDensity,new SceneSettings(prefs));
             renderer.setWallpaper(true);prefs.registerOnSharedPreferenceChangeListener(changes);
             setTouchEventsEnabled(true);setOffsetNotificationsEnabled(false);readPower();
             IntentFilter filter=new IntentFilter(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
@@ -54,17 +55,33 @@ public class SnowWallpaperService extends WallpaperService {
             PowerManager pm=getSystemService(PowerManager.class);
             powerSave=pm!=null&&pm.isPowerSaveMode();interactive=pm!=null&&pm.isInteractive();
         }
-        @Override public void onSurfaceCreated(SurfaceHolder holder){super.onSurfaceCreated(holder);surfaceReady=true;requestFrame();}
+        private void updateGeometry(){
+            if(renderer==null)return;
+            // A minimum design margin also helps wallpaper hosts that report zero bar insets.
+            renderer.resize(surfaceWidth,surfaceHeight,Math.max(safeTop,32*screenDensity),safeBottom,screenDensity);
+        }
+        @Override public void onApplyWindowInsets(WindowInsets insets){
+            super.onApplyWindowInsets(insets);
+            if(Build.VERSION.SDK_INT>=30){
+                android.graphics.Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());
+                safeTop=safe.top;safeBottom=safe.bottom;
+            }else {safeTop=insets.getStableInsetTop();safeBottom=insets.getStableInsetBottom();}
+            updateGeometry();render();requestFrame();
+        }
+        @Override public void onSurfaceCreated(SurfaceHolder holder){
+            super.onSurfaceCreated(holder);surfaceReady=true;countVisibility(visible);requestFrame();
+        }
         @Override public void onSurfaceChanged(SurfaceHolder holder,int format,int w,int h){
-            super.onSurfaceChanged(holder,format,w,h);surfaceReady=true;
+            super.onSurfaceChanged(holder,format,w,h);surfaceReady=true;surfaceWidth=w;surfaceHeight=h;
             Context display=Build.VERSION.SDK_INT>=29?getDisplayContext():SnowWallpaperService.this;
-            renderer.resize(w,h,0,0,display.getResources().getDisplayMetrics().density);
-            render();requestFrame();
+            screenDensity=display.getResources().getDisplayMetrics().density;
+            updateGeometry();render();requestFrame();
         }
         @Override public void onSurfaceRedrawNeeded(SurfaceHolder holder){super.onSurfaceRedrawNeeded(holder);render();}
-        @Override public void onSurfaceDestroyed(SurfaceHolder holder){surfaceReady=false;cancel();super.onSurfaceDestroyed(holder);}
+        @Override public void onSurfaceDestroyed(SurfaceHolder holder){surfaceReady=false;countVisibility(false);cancel();super.onSurfaceDestroyed(holder);}
         @Override public void onVisibilityChanged(boolean shown){
-            visible=shown;countVisibility(shown);cancel();if(shown){readPower();renderer.wake();frames=0;requestFrame();}
+            visible=shown;countVisibility(shown&&surfaceReady);cancel();
+            if(shown){readPower();renderer.wake();frames=0;requestFrame();}
         }
         @Override public void onTouchEvent(MotionEvent event){
             if(event.getActionMasked()==MotionEvent.ACTION_DOWN){long now=android.os.SystemClock.uptimeMillis();
@@ -75,9 +92,7 @@ public class SnowWallpaperService extends WallpaperService {
         private void cancel(){if(posted)Choreographer.getInstance().removeFrameCallback(this);posted=false;presented=0;if(renderer!=null)renderer.resetClock();}
         @Override public void doFrame(long nanos){
             posted=false;if(!visible||!surfaceReady||!interactive)return;
-            if(MotionMath.frameDue(presented,nanos,MotionMath.fps(renderer.settings().quality,powerSave))){
-                presented=nanos;renderer.advance(nanos);render();
-            }
+            if(MotionMath.frameDue(presented,nanos,MotionMath.fps(renderer.settings().quality,powerSave))){presented=nanos;renderer.advance(nanos);render();}
             if(renderer.animated())requestFrame();
         }
         private void render(){
