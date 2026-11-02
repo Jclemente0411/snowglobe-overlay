@@ -173,7 +173,7 @@ class StudioActivity : ComponentActivity() {
                                 item { PremiumPanel("Lock screen snowfall", "Set SnowGlobe as a live wallpaper for your lock screen") {
                                     Text("Android controls which screens use a live wallpaper. Choose lock screen when the system offers that option.", color=Subtle, style=MaterialTheme.typography.bodySmall)
                                     Spacer(Modifier.height(12.dp))
-                                    OutlinedButton(onClick={openWallpaperPicker}, modifier=Modifier.fillMaxWidth()) { Text("Set SnowGlobe live wallpaper") }
+                                    OutlinedButton(onClick={openWallpaperPicker()}, modifier=Modifier.fillMaxWidth()) { Text("Set SnowGlobe live wallpaper") }
                                 } }
                                 item { SectionHeader("Make it yours", "Fine-tune the magic in just a few taps") }
                                 item { QuickModules(onSelect={page=it}) }
