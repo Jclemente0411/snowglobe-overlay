@@ -169,11 +169,11 @@ public class SnowView extends View {
    else if(direction==2){x[i]=.2f+rng.nextFloat()*.9f;}
  }
  float px=x[i]*w,py=y[i]*h;
- c.saveLayerAlpha(px-24,py-24,px+24,py+24,(int)(255*clamp(depth[i],.35f,1f)));
+
  c.save();c.rotate(angle[i],px,py);
  if(selected>=0)ornament(c,selected,px,py,(.6f+sizeMultiplier*.55f)*scale[i]);
  else if(snow)snowflake(c,px,py,(2.5f+sizeMultiplier*4.5f)*scale[i]*depth[i],snowStyle);
- c.restore();c.restore();
+ c.restore();
  }
  // Display-synchronized frames are scheduled by Choreographer, not fixed-delay timers.
  }
