@@ -184,7 +184,7 @@ class StudioActivity : ComponentActivity() {
                                     color=Subtle, style=MaterialTheme.typography.bodySmall, modifier=Modifier.padding(horizontal=8.dp)) }
                             }
                             1 -> {
-                                item { PremiumPanel("Snowfall", "Create the perfect winter atmosphere") {
+                                item { PremiumPanel("Depth-layered snowfall", "Near and far crystals move with natural depth") {
                                     BoolControl("Falling snow","snow",true)
                                     NumControl("Snow speed","speed",50)
                                     NumControl("Snowflake size","size",50)
@@ -199,12 +199,12 @@ class StudioActivity : ComponentActivity() {
                                 } }
                             }
                             2 -> {
-                                item { PremiumPanel("Holiday lights", "A warm glow for every moment") {
+                                item { PremiumPanel("Signature Christmas lights", "Layered glass, natural cable drape and cinematic glow") {
                                     BoolControl("Christmas lights","lights",true)
-                                    BoolControl("Animated twinkle","twinkle",true)
-                                    PickControl("Light strand","lightDesign",listOf("Festive garland","Draped lights","Retro bulbs"),0)
+                                    BoolControl("Natural incandescent twinkle","twinkle",true)
+                                    PickControl("Light strand","lightDesign",listOf("Classic catenary","Deep drape","Vintage C9 glass"),0)
                                     PickControl("Color palette","palette",listOf("Classic Christmas","Winter Wonderland","Golden glow","Candy rainbow"),0)
-                                    NumControl("Bulb size","lightSize",55)
+                                    NumControl("Glass bulb size","lightSize",55)
                                 } }
                             }
                             3 -> {
