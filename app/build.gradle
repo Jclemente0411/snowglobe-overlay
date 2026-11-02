@@ -10,8 +10,8 @@ android {
         applicationId 'com.snowglobe.overlay'
         minSdk 26
         targetSdk 36
-        versionCode 15
-        versionName '0.15.0'
+        versionCode 16
+        versionName '0.16.0'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildFeatures { compose true; buildConfig true }
@@ -27,9 +27,7 @@ android {
             }
         }
     }
-    buildTypes {
-        release { signingConfig signingConfigs.release; minifyEnabled false }
-    }
+    buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
     testOptions { animationsDisabled false }
 }
 dependencies {
@@ -39,7 +37,7 @@ dependencies {
     implementation 'androidx.compose.ui:ui'
     implementation 'androidx.compose.foundation:foundation'
     implementation 'androidx.compose.animation:animation'
-    // Keep the verified 0.14 Expressive dependency while evaluating newer versions separately.
+    // Preserve the compiled 0.15 Expressive dependency; no unrelated framework upgrade.
     implementation 'androidx.compose.material3:material3:1.5.0-alpha01'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test:runner:1.6.2'
