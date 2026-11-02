@@ -169,6 +169,9 @@ class StudioActivity : ComponentActivity() {
                                 NumControl("Snowflake size","size",50)
                                 NumControl("Snow density","density",55)
                                 PickControl("Snowflake design","snowStyle",listOf("Soft snow","Six-point crystal","Icy crystal"),1)
+                                PickControl("Particle direction","particleDirection",listOf("Downward","Diagonal right","Diagonal left","Sideways right","Sideways left"),0)
+                                NumControl("Particle rotation","particleRotation",35)
+                                NumControl("Wind and sway","particleWind",30)
                             } }
                             2 -> item { Panel("Christmas lights","Make your screen glow") {
                                 BoolControl("Show Christmas lights","lights",true)
