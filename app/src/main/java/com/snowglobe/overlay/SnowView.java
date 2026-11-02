@@ -11,7 +11,7 @@ public class SnowView extends View {
  private final SharedPreferences prefs;
  private final Random rng=new Random(2026);
  private final float[] x=new float[100], y=new float[100], drift=new float[100], velocity=new float[100], scale=new float[100];
- private final int[] kind=new int[100];
+ private final float[] angle=new float[100], spin=new float[100], wind=new float[100];
  private long last=0L; private float clock=0;
  private boolean framePosted=false;
  private final Choreographer.FrameCallback frameCallback=new Choreographer.FrameCallback(){
@@ -24,7 +24,7 @@ public class SnowView extends View {
  private static final int[][] COLORS={{0xfff44336,0xff42d66c,0xffffd65b,0xff50bbff},{0xff66d8ff,0xffdffaff,0xffaabaff,0xffffffff},{0xffffcc58,0xffffa15a,0xffffedb0,0xffffffff},{0xffff5050,0xff47e879,0xffffd45a,0xff54bfff,0xffff77d6}};
  public SnowView(Context c,SharedPreferences settings){super(c);prefs=settings;setLayerType(View.LAYER_TYPE_HARDWARE,null);for(int i=0;i<x.length;i++)reset(i,true);}
  @Override protected void onVisibilityChanged(View changedView,int visibility){super.onVisibilityChanged(changedView,visibility);last=0L;if(visibility==View.VISIBLE)scheduleFrame();else cancelFrame();}
- private void reset(int i,boolean initial){x[i]=rng.nextFloat();y[i]=initial?rng.nextFloat():-.03f-rng.nextFloat()*.25f;velocity[i]=.45f+rng.nextFloat()*1.3f;scale[i]=.65f+rng.nextFloat()*1.05f;drift[i]=rng.nextFloat()*6.28f;kind[i]=rng.nextInt(7);}
+ private void reset(int i,boolean initial){x[i]=rng.nextFloat();y[i]=initial?rng.nextFloat():-.03f-rng.nextFloat()*.25f;velocity[i]=.45f+rng.nextFloat()*1.3f;scale[i]=.65f+rng.nextFloat()*1.05f;drift[i]=rng.nextFloat()*6.28f;angle[i]=rng.nextFloat()*360f;spin[i]=(rng.nextFloat()*2f-1f)*(45f+rng.nextFloat()*95f);wind[i]=rng.nextFloat()*2f-1f;}
  private void color(int value){p.setStyle(Paint.Style.FILL);p.setColor(value);p.setAlpha(255);p.clearShadowLayer();}
  private void stroke(int value,float width){p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(width);p.setStrokeCap(Paint.Cap.ROUND);p.setStrokeJoin(Paint.Join.ROUND);p.setColor(value);p.setAlpha(255);p.clearShadowLayer();}
  private void snowflake(Canvas c,float cx,float cy,float r,int style){color(0xfff4fbff);if(style==0){c.drawCircle(cx,cy,r*.5f,p);return;}if(style==2){c.drawCircle(cx,cy,r*.35f,p);}stroke(0xfff4fbff,Math.max(1.2f,r*.19f));for(int a=0;a<6;a++){double angle=a*Math.PI/3;float dx=(float)Math.cos(angle),dy=(float)Math.sin(angle);c.drawLine(cx-dx*r,cy-dy*r,cx+dx*r,cy+dy*r,p);if(style==1){float bx=cx+dx*r*.65f,by=cy+dy*r*.65f;float px=-dy,py=dx;c.drawLine(bx,by,bx-dx*r*.22f+px*r*.18f,by-dy*r*.22f+py*r*.18f,p);c.drawLine(bx,by,bx-dx*r*.22f-px*r*.18f,by-dy*r*.22f-py*r*.18f,p);}}}
@@ -51,11 +51,35 @@ public class SnowView extends View {
  if(prefs.getBoolean("lights",true))lights(c,w,colors,design,sz);
  boolean snow=prefs.getBoolean("snow",true);boolean candy=prefs.getBoolean("candy",false),gifts=prefs.getBoolean("gifts",false),trees=prefs.getBoolean("trees",false),snowmen=prefs.getBoolean("snowmen",false),bulbs=prefs.getBoolean("bulbs",false),stars=prefs.getBoolean("stars",false),confetti=prefs.getBoolean("confetti",false);
  int density=prefs.getInt("density",55),speed=prefs.getInt("speed",50),size=prefs.getInt("size",50),snowStyle=prefs.getInt("snowStyle",1);
+ int direction=Math.max(0,Math.min(4,prefs.getInt("particleDirection",0)));
+ float spinAmount=prefs.getInt("particleRotation",35)/100f;
+ float windAmount=prefs.getInt("particleWind",30)/100f;
+ boolean gentle=prefs.getBoolean("gentleMotion",true);
  float speedMultiplier=.25f+speed/55f;float sizeMultiplier=.4f+size/65f;int visible=(int)(x.length*(.15f+density/120f));
  boolean[] enabled={candy,gifts,trees,snowmen,bulbs,stars,confetti};int total=0;for(boolean e:enabled)if(e)total++;
  for(int i=0;i<visible;i++){boolean decoration=total>0&&i%4==0;int selected=-1;if(decoration){int k=(i/4)%total;for(int t=0;t<enabled.length;t++)if(enabled[t]&&k--==0){selected=t;break;}}
- float vy=(decoration?.075f:.055f)*velocity[i]*speedMultiplier; y[i]+=dt*vy;x[i]+=(float)Math.sin(clock*.6f+drift[i])*dt*.003f;if(y[i]>1.08f||x[i]<-.06f||x[i]>1.06f)reset(i,false);
- float px=x[i]*w,py=y[i]*h;if(selected>=0)ornament(c,selected,px,py,(.6f+sizeMultiplier*.55f)*scale[i]);else if(snow)snowflake(c,px,py,(2.5f+sizeMultiplier*4.5f)*scale[i],snowStyle);
+ float rate=(decoration?.14f:.12f)*velocity[i]*speedMultiplier*(gentle?.72f:1f);
+ float dx=0f,dy=1f;
+ if(direction==1){dx=.65f;dy=1f;}
+ else if(direction==2){dx=-.65f;dy=1f;}
+ else if(direction==3){dx=1f;dy=.20f;}
+ else if(direction==4){dx=-1f;dy=.20f;}
+ float norm=(float)Math.sqrt(dx*dx+dy*dy);dx/=norm;dy/=norm;
+ y[i]+=dt*rate*dy;
+ x[i]+=dt*rate*dx*h/Math.max(1f,w)+dt*(wind[i]*.08f+(float)Math.sin(clock*.85f+drift[i])*.035f)*windAmount;
+ angle[i]+=dt*spin[i]*spinAmount*(gentle?.55f:1f);
+ if(y[i]>1.10f||x[i]<-.10f||x[i]>1.10f){
+   reset(i,false);
+   if(direction==3){x[i]=-.07f;y[i]=rng.nextFloat();}
+   else if(direction==4){x[i]=1.07f;y[i]=rng.nextFloat();}
+   else if(direction==1){x[i]=rng.nextFloat()*.8f-.1f;}
+   else if(direction==2){x[i]=.2f+rng.nextFloat()*.9f;}
+ }
+ float px=x[i]*w,py=y[i]*h;
+ c.save();c.rotate(angle[i],px,py);
+ if(selected>=0)ornament(c,selected,px,py,(.6f+sizeMultiplier*.55f)*scale[i]);
+ else if(snow)snowflake(c,px,py,(2.5f+sizeMultiplier*4.5f)*scale[i],snowStyle);
+ c.restore();
  }
  // Display-synchronized frames are scheduled by Choreographer, not fixed-delay timers.
  }
