@@ -34,8 +34,8 @@ public class SnowView extends View {
  default: // festive confetti
  color(0xffff78b6);c.rotate(25);c.drawRoundRect(-4,-9,4,9,2,2,p);
  }c.restore();}
- private void lights(Canvas c,int w,int[] colors,int design,float size){int count=Math.max(7,(int)(w/(42f*size)));float step=w/(float)count;float base=23*size;stroke(0xff255b43,Math.max(2,2.5f*size));Path wire=new Path();wire.moveTo(0,base);for(int i=0;i<=count;i++){float xx=i*step;float yy=base+(design==0?7:design==1?17:10)*size*(float)Math.sin(i*Math.PI);wire.lineTo(xx,yy);}c.drawPath(wire,p);
- for(int i=0;i<count;i++){float bx=(i+.5f)*step;float by=base+(design==0?7:design==1?17:10)*size*(float)Math.sin((i+.5f)*Math.PI);int col=colors[i%colors.length];float glow=(float)(.48+.52*Math.pow(Math.sin(clock*2.5+i*1.3),2));color(col);p.setAlpha((int)(255*glow));p.setShadowLayer(9*size,0,0,col);if(design==2){c.drawCircle(bx,by+12*size,8*size,p);}else{c.drawOval(bx-6*size,by+4*size,bx+6*size,by+21*size,p);}p.clearShadowLayer();color(0xffd9e3d5);c.drawRoundRect(bx-4*size,by,bx+4*size,by+5*size,2,2,p);}}
+ private void lights(Canvas c,int w,int[] colors,int design,float size){int count=Math.max(7,(int)(w/(42f*size)));float step=w/(float)count;float base=23*size;stroke(0xff255b43,Math.max(2,2.5f*size));Path wire=new Path();wire.moveTo(0,base);for(int i=0;i<=count;i++){float xx=i*step;float yy=base+(design==0?13:design==1?29:19)*size*(float)Math.sin(i*Math.PI/4f);wire.lineTo(xx,yy);}c.drawPath(wire,p);
+ for(int i=0;i<count;i++){float bx=(i+.5f)*step;float by=base+(design==0?13:design==1?29:19)*size*(float)Math.sin((i+.5f)*Math.PI/4f);int col=colors[i%colors.length];float glow=prefs.getBoolean("twinkle",true)?(float)(.32+.68*Math.pow(Math.sin(clock*2.5+i*1.3),2)):1f;color(col);p.setAlpha((int)(255*glow));p.setShadowLayer(9*size,0,0,col);if(design==2){c.drawCircle(bx,by+12*size,8*size,p);}else{c.drawOval(bx-6*size,by+4*size,bx+6*size,by+21*size,p);}p.clearShadowLayer();color(0xffd9e3d5);c.drawRoundRect(bx-4*size,by,bx+4*size,by+5*size,2,2,p);}}
  @Override protected void onDraw(Canvas c){super.onDraw(c);long now=System.nanoTime();float dt=Math.max(0,Math.min(.05f,(now-last)/1e9f));last=now;clock+=dt;int w=getWidth(),h=getHeight();if(w==0||h==0)return;
  int palette=Math.max(0,Math.min(3,prefs.getInt("palette",0)));int[] colors=COLORS[palette];float sz=.65f+prefs.getInt("lightSize",55)/100f;int design=prefs.getInt("lightDesign",0);
  if(prefs.getBoolean("lights",true))lights(c,w,colors,design,sz);
@@ -47,6 +47,6 @@ public class SnowView extends View {
  float vy=(decoration?.075f:.055f)*velocity[i]*speedMultiplier; y[i]+=dt*vy;x[i]+=(float)Math.sin(clock*.6f+drift[i])*dt*.003f;if(y[i]>1.08f||x[i]<-.06f||x[i]>1.06f)reset(i,false);
  float px=x[i]*w,py=y[i]*h;if(selected>=0)ornament(c,selected,px,py,(.6f+sizeMultiplier*.55f)*scale[i]);else if(snow)snowflake(c,px,py,(2.5f+sizeMultiplier*4.5f)*scale[i],snowStyle);
  }
- postInvalidateDelayed(33);
+ postInvalidateDelayed(prefs.getBoolean("gentleMotion",false)?50:33);
  }
 }
