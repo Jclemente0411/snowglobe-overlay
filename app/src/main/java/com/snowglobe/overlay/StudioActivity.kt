@@ -1,220 +1,239 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package com.snowglobe.overlay
 
+import android.Manifest
+import android.app.WallpaperManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.app.WallpaperManager
-import android.content.ComponentName
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
-private val Night = Color(0xFF081322)
-private val PanelColor = Color(0xFF14253A)
-private val Raised = Color(0xFF1C344B)
-private val Mint = Color(0xFF9DF2DA)
-private val White = Color(0xFFF6F9FF)
-private val Subtle = Color(0xFFB4C7D9)
-private val Gold = Color(0xFFFFD68C)
+private val Night=Color(0xFF081322)
+private val Panel=Color(0xFF14253A)
+private val Raised=Color(0xFF203B50)
+private val Mint=Color(0xFF9DF2DA)
+private val White=Color(0xFFF6F9FF)
+private val Muted=Color(0xFFB9CBDC)
+private val Gold=Color(0xFFFFD68C)
 
-class StudioActivity : ComponentActivity() {
+class StudioActivity: ComponentActivity() {
     private lateinit var prefs: SharedPreferences
-    private var running by mutableStateOf(false)
-    private var permissionReady by mutableStateOf(false)
-    private var settingsRevision by mutableIntStateOf(0)
-    private val changeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> settingsRevision++ }
+    private var revision by mutableIntStateOf(0)
+    private var permission by mutableStateOf(false)
+    private var lockApplied by mutableStateOf(false)
+    private var lockCheckAvailable by mutableStateOf(false)
+    private var setupError by mutableStateOf<String?>(null)
+    private val changes=SharedPreferences.OnSharedPreferenceChangeListener { _,_ -> revision++ }
+    private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()) { startWhenAllowed() }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        prefs = getSharedPreferences("snowglobe", Context.MODE_PRIVATE)
-        prefs.registerOnSharedPreferenceChangeListener(changeListener)
-        running = prefs.getBoolean("effectsEnabled", true)
-        permissionReady = Settings.canDrawOverlays(this)
-        window.statusBarColor = android.graphics.Color.rgb(8,19,34)
-        window.navigationBarColor = android.graphics.Color.rgb(8,19,34)
-        setContentView(androidx.compose.ui.platform.ComposeView(this).apply { setContent { Studio() } })
-    }
-
-    private fun send(action: String) {
-        val intent = Intent(this, EffectsService::class.java).setAction(action)
-        if (action == EffectsService.STOP) stopService(intent)
-        else if (action == EffectsService.START) startForegroundService(intent)
-        else startService(intent)
-    }
-    private fun enable(value: Boolean) {
-        if (value && !Settings.canDrawOverlays(this)) {
-            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-            return
-        }
-        prefs.edit().putBoolean("effectsEnabled", value).apply()
-        running = value
-        if (value) {
-            send(EffectsService.START)
-            send(EffectsService.HIDE)
-        } else send(EffectsService.STOP)
+        enableEdgeToEdge()
+        prefs=getSharedPreferences("snowglobe",Context.MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(changes)
+        setContent { Studio() }
     }
     override fun onResume() {
         super.onResume()
-        permissionReady = Settings.canDrawOverlays(this)
-        running = prefs.getBoolean("effectsEnabled", true)
-        if (running && permissionReady) {
-            send(EffectsService.START)
-            send(EffectsService.HIDE)
-        }
+        EffectsService.setStudioVisible(true)
+        permission=Settings.canDrawOverlays(this)
+        checkWallpaper()
+        startWhenAllowed()
+        revision++
     }
-    override fun onPause() {
-        if (running && permissionReady) send(EffectsService.SHOW)
-        super.onPause()
-    }
-    override fun onDestroy() {
-        prefs.unregisterOnSharedPreferenceChangeListener(changeListener)
-        super.onDestroy()
-    }
+    override fun onStop() { EffectsService.setStudioVisible(false);super.onStop() }
+    override fun onDestroy() { prefs.unregisterOnSharedPreferenceChangeListener(changes);super.onDestroy() }
 
-    private fun openWallpaperPicker() {
+    private fun startWhenAllowed() {
+        if(!prefs.getBoolean("effectsEnabled",true)||!Settings.canDrawOverlays(this))return
         try {
-            startActivity(Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
-                putExtra(WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
-                    ComponentName(this@StudioActivity, SnowWallpaperService::class.java))
-            })
-        } catch (_: Exception) {
-            startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))
+            if(!EffectsService.isActive())startForegroundService(Intent(this,EffectsService::class.java).setAction(EffectsService.START))
+        } catch(_: RuntimeException) { setupError="Android could not start the effects. Tap Start again while SnowGlobe is open." }
+    }
+    private fun enable(value: Boolean) {
+        setupError=null
+        prefs.edit().putBoolean("effectsEnabled",value).apply()
+        if(!value){stopService(Intent(this,EffectsService::class.java));return}
+        if(!Settings.canDrawOverlays(this)) {
+            try {startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:$packageName")))}
+            catch(_: RuntimeException){setupError="Open Android Settings, then allow SnowGlobe to display over other apps."}
+            return
+        }
+        if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+            notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else startWhenAllowed()
+    }
+    private fun checkWallpaper() {
+        lockApplied=false;lockCheckAvailable=Build.VERSION.SDK_INT>=34
+        if(Build.VERSION.SDK_INT>=34)try {
+            val info=WallpaperManager.getInstance(this).getWallpaperInfo(WallpaperManager.FLAG_LOCK)
+            lockApplied=info?.let { it.packageName==packageName && it.serviceName==SnowWallpaperService::class.java.name } ?: false
+        } catch(_: RuntimeException){lockCheckAvailable=false}
+    }
+    private fun wallpaperPicker() {
+        setupError=null
+        val specific=Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).putExtra(
+            WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,ComponentName(this,SnowWallpaperService::class.java))
+        try {startActivity(specific)} catch(_: RuntimeException) {
+            try {startActivity(Intent(WallpaperManager.ACTION_LIVE_WALLPAPER_CHOOSER))}
+            catch(_: RuntimeException){setupError="This device does not expose a live wallpaper picker."}
         }
     }
-
-    private fun setBool(key: String, value: Boolean) { prefs.edit().putBoolean(key, value).apply(); settingsRevision++ }
-    private fun setNum(key: String, value: Int) { prefs.edit().putInt(key, value).apply(); settingsRevision++ }
-
-    private fun preset(name: String) {
-        val party = name == "North Pole Party"
-        val edit = prefs.edit().putString("selectedScene", name).putBoolean("snow", true).putBoolean("lights", true)
-        edit.putInt("palette", when(name) { "Winter Wonderland" -> 1; "North Pole Party" -> 3; else -> 0 })
-            .putInt("lightDesign", when(name) { "Winter Wonderland" -> 1; "North Pole Party" -> 2; else -> 0 })
-            .putInt("speed", if(party) 65 else 40).putInt("density", if(party) 75 else 55)
-        for(key in listOf("candy","gifts","trees","snowmen","bulbs","stars","confetti")) edit.putBoolean(key, party)
-        edit.apply()
-        settingsRevision++
+    private fun changeBoolean(key: String,value: Boolean) {
+        val e=prefs.edit().putBoolean(key,value)
+        if(key !in setOf("gentleMotion","reduceMotion","wallpaperSnow","wakeSnow"))e.putString("selectedScene","Custom")
+        e.apply()
+    }
+    private fun changeNumber(key: String,value: Int) {
+        val e=prefs.edit().putInt(key,value)
+        if(key=="lightMotion")e.putBoolean("twinkle",value!=0)
+        if(key!="qualityMode")e.putString("selectedScene","Custom")
+        e.apply()
+    }
+    private fun applyScene(scene: String) {
+        val party=scene=="North Pole Party";val winter=scene=="Winter Wonderland";val gold=scene=="Golden Evening"
+        val e=prefs.edit().putString("selectedScene",scene).putBoolean("snow",true).putBoolean("lights",true)
+            .putInt("palette",if(party)3 else if(winter)1 else if(gold)2 else 0)
+            .putInt("lightDesign",if(gold)2 else 0).putInt("bulbShape",if(winter)1 else if(gold)2 else 0)
+            .putInt("lightMotion",if(party)3 else 1).putBoolean("twinkle",true)
+            .putInt("speed",if(party)55 else 32).putInt("size",45).putInt("density",if(party)65 else 42)
+            .putInt("snowStyle",1).putInt("particleDirection",0).putInt("particleWind",20).putInt("particleRotation",22)
+            .putInt("lightBrightness",75).putInt("lightGlow",45).putInt("lightTempo",25)
+            .putBoolean("screenSparkles",party).putInt("sparkleDensity",25).putBoolean("fallingLightBlink",true)
+        listOf("candy","gifts","trees","snowmen","bulbs","stars","confetti").forEach { e.putBoolean(it,party) }
+        e.apply()
     }
 
     @Composable private fun Studio() {
-        var page by remember { mutableIntStateOf(0) }
-        val pages = listOf("Home", "Snow", "Lights", "Decor")
-        val icons = listOf("⌂", "❄", "✦", "✿")
-        val scheme = darkColorScheme(primary=Mint, onPrimary=Night, background=Night, surface=PanelColor,
-            onSurface=White, onBackground=White, secondary=Gold, onSecondary=Night, surfaceVariant=Raised)
-        MaterialTheme(colorScheme=scheme, shapes=Shapes(large=RoundedCornerShape(30.dp), medium=RoundedCornerShape(22.dp))) {
-            Scaffold(containerColor=Night, contentWindowInsets=WindowInsets(0,0,0,0),
-                topBar={
-                    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal=24.dp, vertical=16.dp),
-                        verticalAlignment=Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("SNOWGLOBE", fontSize=11.sp, letterSpacing=3.sp, color=Mint, fontWeight=FontWeight.Bold)
-                            Text(if(page==0) "Christmas Studio" else pages[page] + " Studio",
-                                style=MaterialTheme.typography.headlineMedium, fontWeight=FontWeight.Bold, letterSpacing=(-0.6).sp)
-                        }
-                        Box(Modifier.size(48.dp).clip(CircleShape).background(Raised),contentAlignment=Alignment.Center) {
-                            Text("❄",fontSize=26.sp,color=Mint)
-                        }
+        val observed=revision
+        val enabled=remember(observed){prefs.getBoolean("effectsEnabled",true)}
+        val reduced=remember(observed){prefs.getBoolean("reduceMotion",false)}
+        var page by rememberSaveable { mutableIntStateOf(0) }
+        val scrollStates=List(4){rememberLazyListState()}
+        val pages=listOf("Home","Snow","Lights","Decor")
+        val theme=darkColorScheme(primary=Mint,onPrimary=Night,secondary=Gold,onSecondary=Night,
+            background=Night,onBackground=White,surface=Panel,onSurface=White,surfaceVariant=Raised,onSurfaceVariant=Muted)
+        MaterialExpressiveTheme(colorScheme=theme,motionScheme=MotionScheme.expressive(),
+            shapes=Shapes(large=RoundedCornerShape(28.dp),medium=RoundedCornerShape(20.dp))) {
+            Scaffold(containerColor=Night,
+                contentWindowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
+                topBar={ Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top+WindowInsetsSides.Horizontal))
+                    .padding(horizontal=22.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("SNOWGLOBE",fontSize=11.sp,letterSpacing=2.sp,color=Mint,fontWeight=FontWeight.Bold)
+                        Text(if(page==0)"Christmas Studio" else pages[page]+" Studio",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold)
                     }
-                },
-                bottomBar={
-                    NavigationBar(containerColor=PanelColor, windowInsets=NavigationBarDefaults.windowInsets) {
-                        pages.forEachIndexed { index, title ->
-                            NavigationBarItem(selected=page==index,onClick={page=index},
-                                icon={ Text(icons[index],fontSize=23.sp) },label={ Text(title) },
-                                colors=NavigationBarItemDefaults.colors(selectedIconColor=Night,
-                                    selectedTextColor=Mint, indicatorColor=Mint, unselectedIconColor=Subtle,
-                                    unselectedTextColor=Subtle))
-                        }
-                    }
-                }
+                    Image(painterResource(R.drawable.snowglobe_icon),null,Modifier.size(46.dp))
+                }},
+                bottomBar={ NavigationBar(containerColor=Panel,windowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom+WindowInsetsSides.Horizontal)) {
+                    pages.forEachIndexed { index,title -> NavigationBarItem(selected=page==index,onClick={page=index},
+                        icon={Text(listOf("\u2302","\u2744","\u2726","\u25C7")[index],fontSize=23.sp)},label={Text(title)},
+                        colors=NavigationBarItemDefaults.colors(indicatorColor=Mint,selectedIconColor=Night,selectedTextColor=Mint,
+                            unselectedIconColor=Muted,unselectedTextColor=Muted)) }
+                }}
             ) { padding ->
-                AnimatedContent(targetState=page, modifier=Modifier.fillMaxSize().padding(padding),
-                    transitionSpec={ fadeIn(tween(240)) togetherWith fadeOut(tween(150)) },label="studio-pages") { current ->
-                    LazyColumn(contentPadding=PaddingValues(start=18.dp,end=18.dp,top=4.dp,bottom=28.dp),
-                        verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                AnimatedContent(targetState=page,modifier=Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding),
+                    transitionSpec={if(reduced) fadeIn(androidx.compose.animation.core.tween(0)) togetherWith fadeOut(androidx.compose.animation.core.tween(0)) else fadeIn(spring(stiffness=650f)) togetherWith fadeOut(spring(stiffness=850f))},label="studio-navigation") { current ->
+                    LazyColumn(state=scrollStates[current],contentPadding=PaddingValues(18.dp,6.dp,18.dp,28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                         when(current) {
                             0 -> {
-                                item { Hero() }
-                                item { SectionHeader("Find your Christmas mood", "Tap a scene to transform your atmosphere") }
+                                item { PreviewCard(enabled) }
+                                item { Section("Choose your atmosphere","Coordinated scenes. Every detail stays editable.") }
                                 item { Scenes() }
-                                item { PremiumPanel("Lock screen snowfall", "Set SnowGlobe as a live wallpaper for your lock screen") {
-                                    Text("Android controls which screens use a live wallpaper. Choose lock screen when the system offers that option.", color=Subtle, style=MaterialTheme.typography.bodySmall)
-                                    Spacer(Modifier.height(12.dp))
-                                    OutlinedButton(onClick={openWallpaperPicker()}, modifier=Modifier.fillMaxWidth()) { Text("Set SnowGlobe live wallpaper") }
+                                item { Section("Make it yours","Snow, glass bulbs and a little Christmas magic.") }
+                                item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                                    pages.drop(1).forEachIndexed { i,name -> FilledTonalButton(onClick={page=i+1},modifier=Modifier.weight(1f).heightIn(min=52.dp),contentPadding=PaddingValues(8.dp)){Text(name)} }
                                 } }
-                                item { SectionHeader("Make it yours", "Fine-tune the magic in just a few taps") }
-                                item { QuickModules(onSelect={page=it}) }
-                                item { PremiumPanel("Comfort & performance", "A calmer atmosphere when you want it") {
-                                    BoolControl("Gentle motion", "gentleMotion", true)
+                                item { LockScreenPanel() }
+                                item { PanelCard("Comfort & performance","Choose the feel, not just the amount.") {
+                                    Toggle("Gentle motion","gentleMotion",true,"Less drift and rotation")
+                                    Toggle("Reduce motion","reduceMotion",false,"Still particles, steady bulbs and no surprise flashes")
+                                    Choice("Animation quality","qualityMode",listOf("Eco - up to 30 fps","Balanced - up to 60 fps","Smooth - up to 120 fps"),1)
+                                    Text("Android controls the actual refresh rate. Battery Saver limits rendering to 30 fps.",style=MaterialTheme.typography.bodySmall,color=Muted)
                                 } }
-                                item { Text("Effects appear over supported apps. Android may restrict secure lock screens and system panels.",
-                                    color=Subtle, style=MaterialTheme.typography.bodySmall, modifier=Modifier.padding(horizontal=8.dp)) }
+                                item { Text("SnowGlobe 0.14.0 beta\nSystem panels and fingerprint controls are not covered or intercepted.",style=MaterialTheme.typography.bodySmall,color=Muted,modifier=Modifier.padding(6.dp)) }
                             }
                             1 -> {
-                                item { PremiumPanel("Depth-layered snowfall", "Near and far crystals move with natural depth") {
-                                    BoolControl("Falling snow","snow",true)
-                                    NumControl("Snow speed","speed",50)
-                                    NumControl("Snowflake size","size",50)
-                                    NumControl("Snow density","density",55)
-                                    PickControl("Snowflake design","snowStyle",listOf("Soft snow","Six-point crystal","Icy crystal"),1)
+                                item { ScenePreview() }
+                                item { PanelCard("Snowfall","Soft layers with individual depth and motion.") {
+                                    Toggle("Falling snow","snow",true)
+                                    SliderControl("Speed","speed",50)
+                                    SliderControl("Size","size",50)
+                                    SliderControl("Amount","density",55)
+                                    Choice("Crystal shape","snowStyle",listOf("Soft snow","Six-point crystal","Minimal crystal"),1)
                                 } }
-                                item { PremiumPanel("Particle motion", "Give each snowflake and decoration personality") {
-                                    PickControl("Travel direction","particleDirection",
-                                        listOf("Downward","Diagonal right","Diagonal left","Sideways right","Sideways left"),0)
-                                    NumControl("Rotation","particleRotation",35)
-                                    NumControl("Wind & sway","particleWind",30)
+                                item { PanelCard("Motion","The same controls move snow and decorations.") {
+                                    Choice("Direction","particleDirection",listOf("Down","Down-right","Down-left","Right","Left","Up","Up-right","Up-left"),0)
+                                    SliderControl("Rotation","particleRotation",35);SliderControl("Wind & sway","particleWind",30)
                                 } }
                             }
                             2 -> {
-                                item { PremiumPanel("Signature Christmas lights", "Layered glass, natural cable drape and cinematic glow") {
-                                    BoolControl("Christmas lights","lights",true)
-                                    BoolControl("Natural incandescent twinkle","twinkle",true)
-                                    PickControl("Light strand","lightDesign",listOf("Classic catenary","Deep drape","Vintage C9 glass"),0)
-                                    PickControl("Color palette","palette",listOf("Classic Christmas","Winter Wonderland","Golden glow","Candy rainbow"),0)
-                                    NumControl("Glass bulb size","lightSize",55)
+                                item { ScenePreview() }
+                                item { PanelCard("Signature lights","Glass bulbs, gentle curves and a restrained glow.") {
+                                    Toggle("Top light strand","lights",true)
+                                    Choice("Bulb shape","bulbShape",listOf("Vintage glass","Round globe","Micro fairy light"),0)
+                                    Choice("Hanging style","lightDesign",listOf("Soft swags","Deep garland","Straight strand"),0)
+                                    Choice("Colors","palette",listOf("Classic Christmas","Winter ice","Warm gold","Candy colors"),0)
+                                    Choice("Light animation","lightMotion",listOf("Steady","Soft twinkle","Slow blink","Traveling wave","Alternating"),1)
+                                    SliderControl("Bulb size","lightSize",55)
+                                    SliderControl("Brightness","lightBrightness",75)
+                                    var advanced by rememberSaveable {mutableStateOf(false)}
+                                    TextButton(onClick={advanced=!advanced}){Text(if(advanced)"Hide fine tuning" else "Fine tune glow & timing")}
+                                    if(advanced){SliderControl("Glow","lightGlow",55);SliderControl("Animation pace","lightTempo",30)}
+                                } }
+                                item { PanelCard("Lights in motion","Let Christmas lights travel beyond the top edge.") {
+                                    Toggle("Falling light bulbs","bulbs",false,"Uses your selected glass shape and palette")
+                                    Toggle("Blink falling bulbs","fallingLightBlink",true)
+                                    Toggle("Floating fairy lights","screenSparkles",false,"Small lights fade in at random positions, then disappear")
+                                    SliderControl("Floating light amount","sparkleDensity",30)
+                                    Text("No rapid strobe or full-screen flashes. Reduce motion makes bulbs steady and disables floating flashes.",style=MaterialTheme.typography.bodySmall,color=Muted)
                                 } }
                             }
                             3 -> {
-                                item { PremiumPanel("Falling decorations", "Mix your favorite festive details") {
-                                    listOf("Candy canes" to "candy","Wrapped presents" to "gifts",
-                                        "Christmas trees" to "trees","Snowmen" to "snowmen",
-                                        "Christmas bulbs" to "bulbs","Golden stars" to "stars",
-                                        "Holiday confetti" to "confetti").forEach { (label,key) ->
-                                        BoolControl(label,key,false)
-                                    }
+                                item { ScenePreview() }
+                                item { PanelCard("Holiday details","Choose a few favorites, or celebrate with all of them.") {
+                                    listOf("Candy canes" to "candy","Presents" to "gifts","Christmas trees" to "trees","Snowmen" to "snowmen","Glass bulbs" to "bulbs","Golden stars" to "stars","Confetti" to "confetti").forEach{(name,key)->Toggle(name,key,false)}
                                 } }
                             }
                         }
@@ -223,154 +242,107 @@ class StudioActivity : ComponentActivity() {
             }
         }
     }
-
-    @Composable private fun Hero() {
-        val animation=rememberInfiniteTransition(label="snow-preview")
-        val travel by animation.animateFloat(initialValue=0f,targetValue=1f,
-            animationSpec=infiniteRepeatable(tween(9000, easing=androidx.compose.animation.core.LinearEasing),
-                RepeatMode.Restart),label="snow-travel")
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(32.dp))
-            .background(Brush.verticalGradient(listOf(Color(0xFF24445D),Color(0xFF10283D),Color(0xFF0C1A2D))))
-            .padding(22.dp)) {
-            Row(verticalAlignment=Alignment.CenterVertically) {
-                Surface(shape=RoundedCornerShape(50),color=if(running && permissionReady) Color(0xFF234C48) else Raised) {
-                    Text(if(running && permissionReady)"●  MAGIC ENABLED" else if(!permissionReady)"●  PERMISSION NEEDED" else "○  EFFECTS PAUSED",
-                        color=if(running && permissionReady) Mint else Gold,fontSize=11.sp,fontWeight=FontWeight.Bold,
-                        letterSpacing=1.sp,modifier=Modifier.padding(horizontal=13.dp,vertical=9.dp))
-                }
+    @Composable private fun PreviewCard(enabled: Boolean) {
+        val observed=revision
+        val active=EffectsService.isActive()
+        val state=prefs.getString("_serviceState","")
+        PanelCard("Your Christmas, alive","The preview below uses the actual effects engine.") {
+            Text(when { !permission->"Overlay permission needed";state=="error"->"Effects need attention";active->"On - preview while you customize";enabled->"Starting effects...";else->"Paused - preview only" },
+                style=MaterialTheme.typography.labelLarge,color=if(active)Mint else Gold)
+            Spacer(Modifier.height(12.dp));ScenePreview()
+            Spacer(Modifier.height(16.dp))
+            Button(onClick={enable(!active||!permission)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)) {
+                Text(if(!permission)"Allow display over apps" else if(active)"Pause Christmas magic" else "Start Christmas magic",fontWeight=FontWeight.Bold)
             }
+            Spacer(Modifier.height(8.dp))
+            Text("Over-app effects appear when you leave SnowGlobe. Your home wallpaper stays unchanged.",style=MaterialTheme.typography.bodySmall,color=Muted)
+            setupError?.let { Text(it,color=Gold,style=MaterialTheme.typography.bodySmall) }
+        }
+    }
+    @Composable private fun ScenePreview() {
+        val context=LocalContext.current
+        val lifecycle=LocalLifecycleOwner.current.lifecycle
+        val scene=remember { SnowView(context,prefs).apply {setPreviewMode(true);contentDescription="Live scene preview. Tap for a small snow flurry."} }
+        DisposableEffect(lifecycle,scene) {
+            val observer=LifecycleEventObserver { _,_ -> scene.setAnimating(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) }
+            lifecycle.addObserver(observer);scene.setAnimating(lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED))
+            onDispose {lifecycle.removeObserver(observer);scene.setAnimating(false)}
+        }
+        AndroidView(factory={scene},modifier=Modifier.fillMaxWidth().height(205.dp).clip(RoundedCornerShape(24.dp)))
+    }
+    @Composable private fun LockScreenPanel() {
+        PanelCard("Lock-screen snowfall","Over-app permission does not activate a live wallpaper.") {
+            Text(when {lockApplied->"SnowGlobe is selected for the lock screen";lockCheckAvailable->"Not applied to the lock screen";else->"Confirm the destination in Android's wallpaper picker"},color=if(lockApplied)Mint else Gold,
+                style=MaterialTheme.typography.titleSmall)
             Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(180.dp)) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val points=70
-                    for(i in 0 until points) {
-                        val x=((i*0.61803398875f)%1f)*size.width
-                        val y=(((i*0.38196601125f+travel*(.55f+(i%5)*.14f))%1f))*size.height
-                        drawCircle(color=White.copy(alpha=.25f+(i%4)*.13f),
-                            radius=1.5f+(i%4)*1.3f,center=Offset(x,y))
-                    }
-                    drawCircle(color=Mint.copy(alpha=.28f),radius=size.minDimension*.23f,
-                        center=Offset(size.width*.52f,size.height*.5f),style=Stroke(width=2.5f))
-                }
-                Column(Modifier.align(Alignment.Center),horizontalAlignment=Alignment.CenterHorizontally) {
-                    Text("❄",fontSize=62.sp,color=White)
-                    Text("Let it snow",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold)
-                }
-            }
-            Text("Your screen. Your Christmas magic.",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.SemiBold)
-            Spacer(Modifier.height(5.dp))
-            Text("Snow, sparkling lights and festive details that follow you across supported apps.",
-                color=Subtle,style=MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(18.dp))
-            Button(onClick={enable(!running || !permissionReady)},modifier=Modifier.fillMaxWidth().height(56.dp),
-                shape=RoundedCornerShape(19.dp)) {
-                Text(if(!permissionReady)"Allow display over apps" else if(running)"Pause Christmas magic" else "Start Christmas magic",
-                    fontWeight=FontWeight.Bold)
-            }
+            Text("This replaces the selected wallpaper with SnowGlobe's winter scene. In the system picker choose Lock screen, or Home and lock screen when that is the available option.",color=Muted,style=MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(12.dp))
+            OutlinedButton(onClick={wallpaperPicker()},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Set lock-screen wallpaper")}
+            Toggle("Snow on wallpaper","wallpaperSnow",true)
+            Toggle("Flurry when the screen wakes","wakeSnow",true)
+            Text("Wake snowfall does not need a fingerprint tap. Touch flurries work only where Android sends wallpaper touches. Always-on display stays still to save power.",style=MaterialTheme.typography.bodySmall,color=Muted)
+            val error=prefs.getString("_wallpaperError",null)
+            if(lockApplied&&error!=null)Text(error,color=Gold)
         }
     }
-
-    @Composable private fun SectionHeader(title:String, subtitle:String) {
-        Column(Modifier.padding(start=7.dp,end=7.dp,top=6.dp)) {
-            Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-            Text(subtitle,color=Subtle,style=MaterialTheme.typography.bodySmall)
-        }
-    }
-
     @Composable private fun Scenes() {
-        val revision=settingsRevision
-        val selected=remember(revision) { prefs.getString("selectedScene","Classic Christmas") ?: "Classic Christmas" }
-        val scenes=listOf(
-            Triple("Classic Christmas","Timeless red, green & gold","🎄"),
-            Triple("Winter Wonderland","Cool tones & peaceful snow","❄"),
-            Triple("North Pole Party","Bright, playful holiday fun","🎁"))
+        val observed=revision
+        val selected=remember(observed){prefs.getString("selectedScene","Custom")}
         Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-            scenes.forEach { (name, description, emoji) ->
-                val active=selected==name
-                val background by animateColorAsState(if(active)Color(0xFF254A4C) else PanelColor,label="scene-color")
-                Surface(onClick={preset(name)},shape=RoundedCornerShape(23.dp),
-                    color=background,border=if(active)BorderStroke(1.dp,Mint.copy(alpha=.7f)) else null) {
-                    Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically,
-                        horizontalArrangement=Arrangement.spacedBy(14.dp)) {
-                        Box(Modifier.size(52.dp).clip(RoundedCornerShape(17.dp)).background(Raised),
-                            contentAlignment=Alignment.Center) { Text(emoji,fontSize=28.sp) }
-                        Column(Modifier.weight(1f)) {
-                            Text(name,fontWeight=FontWeight.SemiBold)
-                            Text(description,color=Subtle,style=MaterialTheme.typography.bodySmall)
-                        }
-                        Text(if(active)"✓" else "›",color=if(active)Mint else Subtle,fontSize=24.sp)
+            listOf("Classic Christmas" to "Red, green and vintage glass","Winter Wonderland" to "Icy globes and peaceful crystals","Golden Evening" to "Warm fairy lights and gentle snow","North Pole Party" to "Falling bulbs, gifts and floating lights").forEach { (name,description) ->
+                val chosen=selected==name
+                val color by animateColorAsState(if(chosen)Color(0xFF24484C) else Panel,label="scene-selection")
+                Surface(onClick={applyScene(name)},modifier=Modifier.fillMaxWidth(),color=color,shape=RoundedCornerShape(22.dp),border=if(chosen)BorderStroke(1.dp,Mint) else null) {
+                    Row(Modifier.padding(18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)){Text(name,fontWeight=FontWeight.SemiBold);Text(description,style=MaterialTheme.typography.bodySmall,color=Muted)}
+                        Text(if(chosen)"\u2713" else "\u203A",fontSize=22.sp,color=Mint)
                     }
                 }
             }
         }
     }
-
-    @Composable private fun QuickModules(onSelect:(Int)->Unit) {
-        Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-            listOf(Triple("Snow","❄",1),Triple("Lights","✦",2),Triple("Decor","🎁",3)).forEach { (label,icon,page) ->
-                Surface(onClick={onSelect(page)},modifier=Modifier.weight(1f),shape=RoundedCornerShape(22.dp),
-                    color=PanelColor) {
-                    Column(Modifier.padding(vertical=18.dp,horizontal=8.dp),horizontalAlignment=Alignment.CenterHorizontally) {
-                        Text(icon,fontSize=27.sp,color=Mint)
-                        Spacer(Modifier.height(8.dp))
-                        Text(label,fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.bodyMedium)
-                    }
-                }
+    @Composable private fun Section(title: String,detail: String) {
+        Column(Modifier.padding(horizontal=6.dp)){Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Text(detail,style=MaterialTheme.typography.bodySmall,color=Muted)}
+    }
+    @Composable private fun PanelCard(title: String,detail: String,content: @Composable ColumnScope.()->Unit) {
+        Card(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),colors=CardDefaults.cardColors(containerColor=Panel)) {
+            Column(Modifier.padding(20.dp)){Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold);Spacer(Modifier.height(5.dp));Text(detail,style=MaterialTheme.typography.bodySmall,color=Muted);Spacer(Modifier.height(16.dp));content()}
+        }
+    }
+    @Composable private fun Toggle(title: String,key: String,default: Boolean,detail: String?=null) {
+        val observed=revision
+        val checked=remember(key,observed){prefs.getBoolean(key,default)}
+        Row(Modifier.fillMaxWidth().heightIn(min=60.dp).toggleable(value=checked,role=Role.Switch,onValueChange={changeBoolean(key,it)}).padding(vertical=8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.bodyLarge);if(detail!=null)Text(detail,style=MaterialTheme.typography.bodySmall,color=Muted)}
+            Switch(checked=checked,onCheckedChange=null)
+        }
+    }
+    @Composable private fun SliderControl(title: String,key: String,default: Int) {
+        val observed=revision
+        val saved=remember(observed,key){prefs.getInt(key,default).coerceIn(0,100)}
+        var dragging by remember {mutableStateOf(false)}
+        var value by remember(key){mutableFloatStateOf(saved.toFloat())}
+        LaunchedEffect(saved){if(!dragging)value=saved.toFloat()}
+        Column(Modifier.padding(vertical=8.dp)) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                Text(title,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+                Text("${value.toInt()}%",color=Mint,style=MaterialTheme.typography.labelLarge)
             }
+            Slider(value=value,valueRange=0f..100f,onValueChange={dragging=true;value=it},onValueChangeFinished={dragging=false;changeNumber(key,value.toInt())},modifier=Modifier.heightIn(min=48.dp))
         }
     }
-
-    @Composable private fun PremiumPanel(title:String,subtitle:String,content:@Composable ColumnScope.()->Unit) {
-        Card(modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(28.dp),
-            colors=CardDefaults.cardColors(containerColor=PanelColor)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text(subtitle,color=Subtle,style=MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(16.dp))
-                content()
-            }
-        }
-    }
-
-    @Composable private fun BoolControl(title:String,key:String,default:Boolean) {
-        val revision=settingsRevision
-        val checked=remember(key,revision) { prefs.getBoolean(key,default) }
-        Row(Modifier.fillMaxWidth().heightIn(min=60.dp),verticalAlignment=Alignment.CenterVertically) {
-            Text(title,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
-            Switch(checked=checked,onCheckedChange={setBool(key,it)})
-        }
-    }
-    @Composable private fun NumControl(title:String,key:String,default:Int) {
-        val revision=settingsRevision
-        val saved=remember(key,revision) { prefs.getInt(key,default) }
-        var progress by remember(key) { mutableFloatStateOf(saved.toFloat()) }
-        LaunchedEffect(saved) { progress=saved.toFloat() }
-        Column(Modifier.fillMaxWidth().padding(vertical=9.dp)) {
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                Text(title,style=MaterialTheme.typography.bodyLarge)
-                Text("${progress.toInt()}%",color=Mint,fontWeight=FontWeight.SemiBold)
-            }
-            Slider(value=progress,onValueChange={progress=it;setNum(key,it.toInt())},valueRange=0f..100f)
-        }
-    }
-    @Composable private fun PickControl(title:String,key:String,options:List<String>,default:Int) {
-        val revision=settingsRevision
-        val selected=remember(key,revision) { prefs.getInt(key,default).coerceIn(options.indices) }
-        var expanded by remember { mutableStateOf(false) }
-        Column(Modifier.fillMaxWidth().padding(vertical=8.dp)) {
-            Text(title,style=MaterialTheme.typography.bodyLarge)
-            Spacer(Modifier.height(9.dp))
+    @Composable private fun Choice(title: String,key: String,options: List<String>,default: Int) {
+        val observed=revision
+        val index=remember(observed,key){prefs.getInt(key,default).coerceIn(options.indices)}
+        var open by remember {mutableStateOf(false)}
+        Column(Modifier.fillMaxWidth().padding(vertical=10.dp)) {
+            Text(title,style=MaterialTheme.typography.bodyLarge);Spacer(Modifier.height(8.dp))
             Box {
-                OutlinedButton(onClick={expanded=true},modifier=Modifier.fillMaxWidth(),
-                    shape=RoundedCornerShape(17.dp)) {
-                    Text(options[selected],modifier=Modifier.weight(1f),maxLines=1,overflow=TextOverflow.Ellipsis)
-                    Text("⌄",fontSize=20.sp)
+                OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(18.dp)) {
+                    Text(options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))
                 }
-                DropdownMenu(expanded=expanded,onDismissRequest={expanded=false}) {
-                    options.forEachIndexed { index,option ->
-                        DropdownMenuItem(text={Text(option)},onClick={setNum(key,index);expanded=false})
-                    }
+                DropdownMenu(expanded=open,onDismissRequest={open=false}) {
+                    options.forEachIndexed { i,label->DropdownMenuItem(text={Text(label)},onClick={changeNumber(key,i);open=false}) }
                 }
             }
         }

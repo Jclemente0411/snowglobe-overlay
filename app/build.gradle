@@ -1,26 +1,62 @@
-plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android'; id 'org.jetbrains.kotlin.plugin.compose' }
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+}
 android {
- namespace 'com.snowglobe.overlay'
- compileSdk 36
- defaultConfig { applicationId 'com.snowglobe.overlay'; minSdk 26; targetSdk 36; versionCode 13; versionName '0.13.0' }
- buildFeatures { compose true }
- dependencies { implementation platform('androidx.compose:compose-bom:2025.05.01'); implementation 'androidx.activity:activity-compose:1.10.1'; implementation 'androidx.compose.ui:ui'; implementation 'androidx.compose.foundation:foundation'; implementation 'androidx.compose.material3:material3'; implementation 'androidx.compose.animation:animation' }
- kotlinOptions { jvmTarget = '17' }
- compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
- signingConfigs {
-   release {
-     if (System.getenv('PLAY_STORE_FILE')) {
-       storeFile file(System.getenv('PLAY_STORE_FILE'))
-       storePassword System.getenv('PLAY_STORE_PASSWORD')
-       keyAlias System.getenv('PLAY_KEY_ALIAS')
-       keyPassword System.getenv('PLAY_KEY_PASSWORD')
-     }
-   }
- }
- buildTypes {
-   release {
-     signingConfig signingConfigs.release
-     minifyEnabled false
-   }
- }
+    namespace 'com.snowglobe.overlay'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.snowglobe.overlay'
+        minSdk 26
+        targetSdk 36
+        versionCode 14
+        versionName '0.14.0'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildFeatures { compose true; buildConfig true }
+    kotlinOptions { jvmTarget = '17' }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    signingConfigs {
+        release {
+            if (System.getenv('PLAY_STORE_FILE')) {
+                storeFile file(System.getenv('PLAY_STORE_FILE'))
+                storePassword System.getenv('PLAY_STORE_PASSWORD')
+                keyAlias System.getenv('PLAY_KEY_ALIAS')
+                keyPassword System.getenv('PLAY_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release { signingConfig signingConfigs.release; minifyEnabled false }
+    }
+    testOptions { animationsDisabled false }
+}
+dependencies {
+    implementation platform('androidx.compose:compose-bom:2025.05.01')
+    implementation 'androidx.activity:activity-compose:1.10.1'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.animation:animation'
+    // Public Expressive APIs, pinned together for this internal beta; not an Android OS switch.
+    implementation 'androidx.compose.material3:material3:1.5.0-alpha01'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.uiautomator:uiautomator:2.3.0'
+}
+
+tasks.register('writeReleaseMetadata') {
+    doLast {
+        def output = file("$buildDir/reports/release-metadata.json")
+        output.parentFile.mkdirs()
+        output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson([
+            applicationId: android.defaultConfig.applicationId,
+            versionCode: android.defaultConfig.versionCode,
+            versionName: android.defaultConfig.versionName,
+            targetSdk: android.defaultConfig.targetSdkVersion.apiLevel
+        ]))
+    }
 }
