@@ -52,35 +52,24 @@ class StudioActivity : ComponentActivity() {
         if(running && Settings.canDrawOverlays(this)) startEffects()
     }
 
+    private fun sendEffect(action:String) {
+        val intent=Intent(this,EffectsService::class.java).setAction(action)
+        if(action==EffectsService.STOP) stopService(intent) else startForegroundService(intent)
+    }
     private fun startEffects() {
         if (!Settings.canDrawOverlays(this)) {
             startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             return
         }
-        if (overlay != null) return
-        val view = SnowView(applicationContext, prefs)
-        val wm = applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        val p = WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT)
-        p.gravity = Gravity.TOP or Gravity.START
-        try {
-            wm.addView(view,p)
-            view.visibility = if(foreground) View.INVISIBLE else View.VISIBLE
-            overlay=view
-            manager=wm
-        } catch (_: Exception) { overlay=null }
+        sendEffect(EffectsService.START)
     }
-
-    private fun stopEffects() {
-        overlay?.let { try { manager?.removeView(it) } catch (_:Exception) {} }
-        overlay=null
-    }
+    private fun stopEffects(){sendEffect(EffectsService.STOP)}
     private fun enable(value:Boolean) {
         prefs.edit().putBoolean("effectsEnabled",value).apply()
         running=value
         if(value) startEffects() else stopEffects()
     }
-    private fun setBool(key:String,value:Boolean){prefs.edit().putBoolean(key,value).apply();overlay?.invalidate()}
+    private fun setBool(key:String,value:Boolean){prefs.edit().putBoolean(key,value).apply();Unit}
     private fun setNum(key:String,value:Int){prefs.edit().putInt(key,value).apply();overlay?.invalidate()}
     private fun preset(name:String) {
         val party=name=="North Pole Party"
@@ -92,8 +81,8 @@ class StudioActivity : ComponentActivity() {
         editor.apply()
         overlay?.invalidate()
     }
-    override fun onResume(){super.onResume();foreground=true;overlay?.visibility=View.INVISIBLE;if(running && overlay==null && Settings.canDrawOverlays(this))startEffects()}
-    override fun onStop(){foreground=false;overlay?.visibility=View.VISIBLE;super.onStop()}
+    override fun onResume(){super.onResume();foreground=true;if(running && Settings.canDrawOverlays(this))sendEffect(EffectsService.HIDE)}
+    override fun onStop(){foreground=false;if(running && Settings.canDrawOverlays(this))sendEffect(EffectsService.SHOW);super.onStop()}
     override fun onDestroy(){super.onDestroy()}
 
     @Composable private fun Studio() {
@@ -126,7 +115,7 @@ class StudioActivity : ComponentActivity() {
                         when(page) {
                             0 -> {
                                 item { Panel("Christmas magic","Beautiful effects over your existing wallpaper") {
-                                    Text(if(running && overlay!=null)"●  Effects ready — press Home to enjoy" else "○  Effects paused or awaiting permission",color=Mint)
+                                    Text(if(running && Settings.canDrawOverlays(this))"●  Effects ready — press Home to enjoy" else "○  Effects paused or awaiting permission",color=Mint)
                                     Spacer(Modifier.height(18.dp))
                                     Button(onClick={enable(true)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(20.dp)) { Text("Start Christmas magic") }
                                     Spacer(Modifier.height(8.dp))
