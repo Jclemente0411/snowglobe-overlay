@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 jobs:
   apk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -15,9 +15,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Locate preinstalled Android SDK
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          ls -la "$ANDROID_HOME/platforms" || true
+          ls -la "$ANDROID_HOME/build-tools" || true
       - name: Build debug APK
         run: |
           if [ -f gradlew ]; then
@@ -27,6 +29,8 @@ jobs:
             gradle --no-daemon assembleDebug
           fi
       - uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: SnowGlobe-debug-apk
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
