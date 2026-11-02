@@ -15,9 +15,9 @@ public final class SceneSettings {
         wallpaperSnow=p.getBoolean("wallpaperSnow",true);wakeSnow=p.getBoolean("wakeSnow",true);
         fallingBlink=p.getBoolean("fallingLightBlink",true);
         palette=integer(p,"palette",0,0,3);design=integer(p,"lightDesign",0,0,2);
-        bulbShape=integer(p,"bulbShape",0,0,2);motion=twinkle?integer(p,"lightMotion",1,0,4):0;
+        bulbShape=integer(p,"bulbShape",0,0,2);motion=twinkle?integer(p,"lightMotion",1,0,5):0;
         direction=integer(p,"particleDirection",0,0,7);flake=integer(p,"snowStyle",1,0,2);
-        count=Math.round(integer(p,"density",55,0,100)*1.2f);quality=integer(p,"qualityMode",1,0,2);
+        count=Math.round(integer(p,"density",55,0,100)*1.2f);quality=integer(p,"qualityMode",3,0,3);
         speed=0.2f+value(p,"speed",50)*1.5f;size=0.45f+value(p,"size",50)*1.15f;
         bulbSize=0.65f+value(p,"lightSize",55)*0.9f;
         brightness=value(p,"lightBrightness",75);glow=value(p,"lightGlow",55);

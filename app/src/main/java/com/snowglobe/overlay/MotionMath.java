@@ -42,7 +42,7 @@ public final class MotionMath {
     public static float brightness(int mode, float time, float seed, float rate, boolean reduced) {
         if (reduced || mode == 0) return 1f;
         double phase = time * (0.15f + clamp(rate, 0f, 1f) * 0.65f) * Math.PI * 2;
-        if (mode == 1) return (float)(0.68 + 0.32 * (0.5 + 0.5 * Math.sin(phase * 0.63 + seed * 2.31)));
+        // Vintage incandescent: restrained, slow, phase-offset warmth without a full off state.\n        if (mode == 5) return (float)(0.77 + 0.17*(0.5+0.5*Math.sin(phase*0.34+seed*0.93)) + 0.06*(0.5+0.5*Math.sin(phase*0.19+seed*1.71)));\n        if (mode == 1) return (float)(0.68 + 0.32 * (0.5 + 0.5 * Math.sin(phase * 0.63 + seed * 2.31)));
         if (mode == 2) return 0.08f + 0.92f * smooth((float)(0.5 + 0.5 * Math.sin(phase + seed * 0.12)));
         if (mode == 3) return (float)(0.22 + 0.78 * Math.pow(0.5 + 0.5 * Math.sin(phase - seed * 0.85), 2));
         return 0.14f + 0.86f * smooth((float)(0.5 + 0.5 * Math.sin(phase + ((int)seed % 2) * Math.PI)));

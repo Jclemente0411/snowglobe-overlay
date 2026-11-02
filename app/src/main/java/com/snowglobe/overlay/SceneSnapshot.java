@@ -21,7 +21,7 @@ public final class SceneSnapshot {
     public Map<String,Object> values(){return values;}
     private static int max(String k){
         if(k.equals("palette"))return 3;if(k.equals("lightDesign")||k.equals("bulbShape")||k.equals("snowStyle"))return 2;
-        if(k.equals("lightMotion"))return 4;if(k.equals("particleDirection"))return 7;return 100;
+        if(k.equals("lightMotion"))return 5;if(k.equals("particleDirection"))return 7;return 100;
     }
     public static SceneSnapshot capture(Map<String,?> source){
         Map<String,Object> result=new LinkedHashMap<>();

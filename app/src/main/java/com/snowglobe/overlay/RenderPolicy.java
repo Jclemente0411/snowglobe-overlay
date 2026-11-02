@@ -4,7 +4,7 @@ package com.snowglobe.overlay;
 public final class RenderPolicy {
     private RenderPolicy() {}
     public static int fps(int quality, boolean preview, boolean powerSaver, int thermal) {
-        int result=quality<=0?30:quality==1?60:120;
+        return fps(quality,preview,powerSaver,thermal,120f);\n    }\n    /** Auto mode uses a conservative cap based on the actual screen, not an assumed Pixel refresh rate. */\n    public static int fps(int quality, boolean preview, boolean powerSaver, int thermal, float displayHz) {\n        int result=quality<=0?30:quality==1?60:quality==3?(displayHz>=90f?60:30):120;
         if(preview)result=Math.min(result,30);
         if(powerSaver||thermal>=2)result=Math.min(result,30);
         if(thermal>=4)result=Math.min(result,15);

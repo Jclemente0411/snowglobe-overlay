@@ -130,7 +130,7 @@ public final class SceneRenderer {
             else if(shape==2)glass.addRoundRect(43,33,53,52,4,4,Path.Direction.CW);
             else {glass.moveTo(42,32);glass.cubicTo(28,45,39,66,48,71);glass.cubicTo(57,66,68,45,54,32);glass.close();}
             p.setShader(new LinearGradient(34,35,62,64,new int[]{0xfff9ffff,col,col,0xff172c3d},new float[]{0,.24f,.66f,1},Shader.TileMode.CLAMP));
-            c.drawPath(glass,p);p.setShader(null);
+            c.drawPath(glass,p);p.setShader(null);\n            // Fine glass edge and lower reflection are baked once into this sprite.\n            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.25f);p.setColor(0x77ffffff);\n            c.drawPath(glass,p);p.setStyle(Paint.Style.FILL);\n            p.setColor(0x42ffffff);c.drawOval(41,35,45,44,p);\n            p.setColor(0x55ffffff);c.drawOval(52,53,55,58,p);
             p.setColor(0xfffff2cc);p.setAlpha(220);c.drawRoundRect(46.8f,40,49.2f,shape==2?48:56,1.1f,1.1f,p);
             p.setColor(0xaaffffff);p.setStrokeWidth(1.6f);p.setStyle(Paint.Style.STROKE);p.setStrokeCap(Paint.Cap.ROUND);
             if(shape==2)c.drawLine(45,36,45,42,p);else c.drawLine(40,39,38,48,p);

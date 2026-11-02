@@ -71,7 +71,7 @@ public class SnowWallpaperService extends WallpaperService {
             }
             super.onTouchEvent(event);
         }
-        private int fps(){return RenderPolicy.fps(renderer.settings().quality,isPreview(),power.powerSaver,power.thermal);}
+        private int fps(){return RenderPolicy.fps(renderer.settings().quality,isPreview(),power.powerSaver,power.thermal,displayHz);}
         private void requestFrame(){
             if(!posted&&visible&&surfaceReady&&power!=null&&power.interactive&&failures<3){
                 posted=true;Choreographer.getInstance().postFrameCallbackDelayed(this,RenderPolicy.delayMillis(presented,System.nanoTime(),fps(),displayHz));
