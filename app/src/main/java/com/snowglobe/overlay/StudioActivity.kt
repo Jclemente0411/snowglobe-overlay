@@ -36,10 +36,8 @@ private val Muted = Color(0xFFB8C8D9)
 
 class StudioActivity : ComponentActivity() {
     private lateinit var prefs: SharedPreferences
-    private var overlay: SnowView? = null
-    private var manager: WindowManager? = null
-    private var running by mutableStateOf(false)
-    private var foreground = true
+        private var running by mutableStateOf(false)
+    private var permissionReady by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,13 +46,14 @@ class StudioActivity : ComponentActivity() {
         window.navigationBarColor = android.graphics.Color.rgb(11,23,42)
         window.decorView.systemUiVisibility = 0
         running = prefs.getBoolean("effectsEnabled",true)
+        permissionReady = Settings.canDrawOverlays(this)
         setContentView(ComposeView(this).apply { setContent { Studio() } })
         if(running && Settings.canDrawOverlays(this)) startEffects()
     }
 
     private fun sendEffect(action:String) {
         val intent=Intent(this,EffectsService::class.java).setAction(action)
-        if(action==EffectsService.STOP) stopService(intent) else startForegroundService(intent)
+        if(action==EffectsService.STOP) stopService(intent) else if(action==EffectsService.START) startForegroundService(intent) else startService(intent)
     }
     private fun startEffects() {
         if (!Settings.canDrawOverlays(this)) {
@@ -69,8 +68,8 @@ class StudioActivity : ComponentActivity() {
         running=value
         if(value) startEffects() else stopEffects()
     }
-    private fun setBool(key:String,value:Boolean){prefs.edit().putBoolean(key,value).apply();Unit}
-    private fun setNum(key:String,value:Int){prefs.edit().putInt(key,value).apply();overlay?.invalidate()}
+    private fun setBool(key:String,value:Boolean){prefs.edit().putBoolean(key,value).apply()}
+    private fun setNum(key:String,value:Int){prefs.edit().putInt(key,value).apply()}
     private fun preset(name:String) {
         val party=name=="North Pole Party"
         val editor=prefs.edit().putBoolean("snow",true).putBoolean("lights",true)
@@ -79,10 +78,9 @@ class StudioActivity : ComponentActivity() {
             .putInt("speed",if(party)65 else 40).putInt("density",if(party)75 else 55)
         for(key in listOf("candy","gifts","trees","snowmen","bulbs","stars","confetti")) editor.putBoolean(key,party)
         editor.apply()
-        overlay?.invalidate()
     }
-    override fun onResume(){super.onResume();foreground=true;if(running && Settings.canDrawOverlays(this))sendEffect(EffectsService.HIDE)}
-    override fun onStop(){foreground=false;if(running && Settings.canDrawOverlays(this))sendEffect(EffectsService.SHOW);super.onStop()}
+    override fun onResume(){super.onResume();permissionReady=Settings.canDrawOverlays(this);if(running && permissionReady){startEffects();sendEffect(EffectsService.HIDE)}}
+    override fun onPause(){if(running && permissionReady)sendEffect(EffectsService.SHOW);super.onPause()}
     override fun onDestroy(){super.onDestroy()}
 
     @Composable private fun Studio() {
@@ -94,9 +92,9 @@ class StudioActivity : ComponentActivity() {
                 containerColor=Night,
                 contentWindowInsets=WindowInsets(0,0,0,0),
                 topBar={ Column(Modifier.fillMaxWidth().statusBarsPadding().padding(start=24.dp,end=24.dp,top=18.dp,bottom=12.dp)) {
-                    Text("SnowGlobe  ❄",style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.Bold)
+                    Text("SnowGlobe",style=MaterialTheme.typography.headlineLarge,fontWeight=FontWeight.Bold,letterSpacing=(-0.7).sp)
                     Spacer(Modifier.height(4.dp))
-                    Text("Your personal Christmas studio",color=Muted,style=MaterialTheme.typography.bodyMedium)
+                    Text("Make every day feel like Christmas ✦",color=Muted,style=MaterialTheme.typography.bodyMedium)
                 }},
                 bottomBar={
                     NavigationBar(containerColor=Surface,windowInsets=NavigationBarDefaults.windowInsets) {
@@ -114,20 +112,56 @@ class StudioActivity : ComponentActivity() {
                     LazyColumn(contentPadding=PaddingValues(start=18.dp,end=18.dp,top=8.dp,bottom=28.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
                         when(page) {
                             0 -> {
-                                item { Panel("Christmas magic","Beautiful effects over your existing wallpaper") {
-                                    Text(if(running && Settings.canDrawOverlays(this@StudioActivity))"●  Effects ready — press Home to enjoy" else "○  Effects paused or awaiting permission",color=Mint)
-                                    Spacer(Modifier.height(18.dp))
-                                    Button(onClick={enable(true)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(20.dp)) { Text("Start Christmas magic") }
+                                item { Panel("Your Christmas atmosphere","One tap to bring the holidays to life") {
+                                    Text(
+                                        when {
+                                            !permissionReady -> "Overlay permission needed"
+                                            running -> "Effects enabled · ready for your home screen"
+                                            else -> "Effects paused"
+                                        },
+                                        color=if(running && permissionReady) Mint else Muted,
+                                        style=MaterialTheme.typography.titleMedium
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    Button(
+                                        onClick={enable(!running)},
+                                        modifier=Modifier.fillMaxWidth().heightIn(min=58.dp),
+                                        shape=RoundedCornerShape(22.dp)
+                                    ) { Text(if(!permissionReady)"Allow display over apps" else if(running)"Pause Christmas magic" else "Start Christmas magic") }
                                     Spacer(Modifier.height(8.dp))
-                                    OutlinedButton(onClick={enable(false)},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)) { Text("Pause effects") }
+                                    Text("Return to your home screen to see the effects. Your wallpaper stays yours.",color=Muted,style=MaterialTheme.typography.bodySmall)
                                 } }
-                                item { Panel("Christmas scenes","Choose your favorite holiday mood") {
-                                    listOf("Classic Christmas","Winter Wonderland","North Pole Party").forEach { name ->
-                                        FilledTonalButton(onClick={preset(name)},modifier=Modifier.fillMaxWidth().padding(bottom=6.dp),shape=RoundedCornerShape(18.dp)) { Text(name) }
+                                item { Panel("Choose a scene","Beautifully coordinated holiday looks") {
+                                    var chosen by remember { mutableStateOf(prefs.getString("selectedScene","Classic Christmas") ?: "Classic Christmas") }
+                                    listOf(
+                                        Triple("Classic Christmas","Warm reds, greens and festive lights","🎄"),
+                                        Triple("Winter Wonderland","Cool colors and peaceful snowfall","❄"),
+                                        Triple("North Pole Party","Colorful, playful Christmas magic","🎁")
+                                    ).forEach { (name,description,emoji) ->
+                                        val active=chosen==name
+                                        Surface(
+                                            onClick={preset(name);prefs.edit().putString("selectedScene",name).apply();chosen=name},
+                                            modifier=Modifier.fillMaxWidth().padding(bottom=10.dp),
+                                            shape=RoundedCornerShape(20.dp),
+                                            color=if(active)Color(0xFF294B53) else Night,
+                                            border=if(active)androidx.compose.foundation.BorderStroke(1.dp,Mint) else null
+                                        ) {
+                                            Row(Modifier.padding(16.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)) {
+                                                Text(emoji,fontSize=28.sp)
+                                                Column(Modifier.weight(1f)) {
+                                                    Text(name,fontWeight=FontWeight.SemiBold)
+                                                    Text(description,color=Muted,style=MaterialTheme.typography.bodySmall)
+                                                }
+                                                if(active)Text("✓",color=Mint,fontSize=20.sp)
+                                            }
+                                        }
                                     }
                                 } }
-                                item { Panel("Comfort & performance","Adjust motion for your device") { BoolControl("Gentle motion","gentleMotion",true) } }
-                                item { Text("Effects appear over supported apps. Android controls the notification shade and secure lock screen.",color=Muted,style=MaterialTheme.typography.bodySmall) }
+                                item { Panel("Personalize your magic","Fine-tune each detail in the tabs below") {
+                                    Text("Snowfall  •  Twinkling lights  •  Decorations",color=Muted)
+                                } }
+                                item { Panel("Comfort & performance","Choose a softer motion style") { BoolControl("Gentle motion","gentleMotion",true) } }
+                                item { Text("Android may restrict effects on the secure lock screen and system panels.",color=Muted,style=MaterialTheme.typography.bodySmall) }
                             }
                             1 -> item { Panel("Snowfall studio","Shape your perfect winter") {
                                 BoolControl("Falling snow","snow",true)
