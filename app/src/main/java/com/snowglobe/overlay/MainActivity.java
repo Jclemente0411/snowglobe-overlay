@@ -1,33 +1,39 @@
 package com.snowglobe.overlay;
 import android.app.Activity;
 import android.os.Bundle;
-import android.content.Intent;
+import android.content.*;
 import android.net.Uri;
 import android.provider.Settings;
 import android.graphics.Color;
+import android.graphics.Typeface;
 import android.graphics.PixelFormat;
-import android.view.Gravity;
-import android.view.WindowManager;
+import android.graphics.drawable.GradientDrawable;
+import android.view.*;
 import android.widget.*;
-import android.content.SharedPreferences;
+
 public class MainActivity extends Activity {
- private WindowManager wm; private SnowView overlay;
- private SharedPreferences prefs;
- private LinearLayout root;
+ private WindowManager wm;private SnowView overlay;private SharedPreferences prefs;private LinearLayout root;
+ private final int NAVY=0xff0b1930, PANEL=0xff172b43, WHITE=0xfff3f8ff, MUTED=0xffaec4d7, GREEN=0xff41d5a0;
  @Override public void onCreate(Bundle b){super.onCreate(b);wm=(WindowManager)getSystemService(WINDOW_SERVICE);prefs=getSharedPreferences("snowglobe",MODE_PRIVATE);render();}
- private TextView label(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(Color.WHITE);t.setPadding(0,14,0,12);root.addView(t);return t;}
- private void option(String title,String key,boolean initial){Switch sw=new Switch(this);sw.setText(title);sw.setTextColor(Color.WHITE);sw.setTextSize(17);sw.setPadding(0,12,0,12);sw.setChecked(prefs.getBoolean(key,initial));root.addView(sw);sw.setOnCheckedChangeListener((v,checked)->{prefs.edit().putBoolean(key,checked).apply();refreshOverlay();});}
- private void colorOption(){String[] names={"Classic Christmas","Winter Blue","Warm Gold","Rainbow"};Spinner spinner=new Spinner(this);ArrayAdapter<String> a=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names);spinner.setAdapter(a);spinner.setSelection(prefs.getInt("palette",0));root.addView(spinner);spinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(android.widget.AdapterView<?> p){}public void onItemSelected(android.widget.AdapterView<?> p,android.view.View v,int pos,long id){prefs.edit().putInt("palette",pos).apply();refreshOverlay();}});}
- private void render(){ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setPadding(36,48,36,50);root.setBackgroundColor(0xff102238);scroll.addView(root);
- label("❄ SnowGlobe",28);label("Bring holiday magic over your screen. Your wallpaper stays unchanged.",15);
- label("FREE EFFECTS",20);option("Falling snow","snow",true);option("Twinkling lights","lights",true);label("Holiday light colors",17);colorOption();
- label("HOLIDAY PLUS • COMING SOON",20);label("Planned $2.99 one-time unlock: falling presents, candy canes, stars, and festive confetti. Premium effects are not available for purchase yet.",15);
- Button start=new Button(this);start.setText("Start effects");root.addView(start);start.setOnClickListener(v->startOverlay());
- Button stop=new Button(this);stop.setText("Stop effects");root.addView(stop);stop.setOnClickListener(v->stopOverlay());
- label("SnowGlobe needs Display over other apps permission. Effects are visual only and do not capture your screen or touches. They stop when this app closes.",13);
+ private GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(radius);return d;}
+ private TextView text(String s,int size,int color,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(null,Typeface.BOLD);return t;}
+ private void addText(LinearLayout parent,String s,int size,int color,boolean bold,int bottom){TextView t=text(s,size,color,bold);t.setPadding(0,0,0,bottom);parent.addView(t);}
+ private LinearLayout section(String heading,String subtitle){LinearLayout card=new LinearLayout(this);card.setOrientation(1);card.setPadding(22,22,22,24);card.setBackground(bg(PANEL,24));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,-2);cp.setMargins(0,0,0,22);root.addView(card,cp);addText(card,heading,20,WHITE,true,7);if(subtitle!=null)addText(card,subtitle,13,MUTED,false,16);return card;}
+ private void toggle(LinearLayout parent,String title,String detail,String key,boolean initial){LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(0,9,0,10);LinearLayout labels=new LinearLayout(this);labels.setOrientation(1);labels.addView(text(title,16,WHITE,true));if(detail!=null)labels.addView(text(detail,12,MUTED,false));row.addView(labels,new LinearLayout.LayoutParams(0,-2,1));Switch sw=new Switch(this);sw.setButtonTintList(null);sw.setChecked(prefs.getBoolean(key,initial));row.addView(sw);parent.addView(row);sw.setOnCheckedChangeListener((v,on)->{prefs.edit().putBoolean(key,on).apply();refreshOverlay();});}
+ private void slider(LinearLayout parent,String title,String key,int initial){LinearLayout row=new LinearLayout(this);row.setOrientation(1);row.setPadding(0,10,0,8);TextView titleView=text(title,15,WHITE,true);row.addView(titleView);SeekBar bar=new SeekBar(this);bar.setMax(100);bar.setProgress(prefs.getInt(key,initial));row.addView(bar);parent.addView(row);bar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar s){}public void onStopTrackingTouch(SeekBar s){}public void onProgressChanged(SeekBar s,int progress,boolean fromUser){if(fromUser){prefs.edit().putInt(key,progress).apply();refreshOverlay();}}});}
+ private void choice(LinearLayout parent,String title,String key,String[] names,int initial){addText(parent,title,15,WHITE,true,7);Spinner sp=new Spinner(this);ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names);sp.setAdapter(adapter);sp.setBackground(bg(0xffe9f3fb,14));sp.setPadding(10,4,10,4);sp.setSelection(Math.min(names.length-1,prefs.getInt(key,initial)));LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,50);lp.setMargins(0,0,0,14);parent.addView(sp,lp);sp.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onNothingSelected(android.widget.AdapterView<?> a){}public void onItemSelected(android.widget.AdapterView<?> a,View v,int pos,long id){prefs.edit().putInt(key,pos).apply();refreshOverlay();}});}
+ private void render(){ScrollView scroll=new ScrollView(this);scroll.setFillViewport(true);root=new LinearLayout(this);root.setOrientation(1);root.setPadding(24,42,24,44);root.setBackgroundColor(NAVY);scroll.addView(root);
+ addText(root,"❄  SnowGlobe",32,WHITE,true,8);addText(root,"Your Christmas. Your screen. Your magic.",16,MUTED,false,25);
+ LinearLayout actions=section("Holiday magic","Your wallpaper stays exactly as it is.");
+ Button start=new Button(this);start.setText("✨  START CHRISTMAS MAGIC");start.setTextColor(0xff09243a);start.setBackgroundTintList(android.content.res.ColorStateList.valueOf(GREEN));actions.addView(start,new LinearLayout.LayoutParams(-1,56));start.setOnClickListener(v->startOverlay());
+ Button stop=new Button(this);stop.setText("STOP EFFECTS");actions.addView(stop,new LinearLayout.LayoutParams(-1,50));stop.setOnClickListener(v->stopOverlay());
+ LinearLayout snow=section("❄  Snowfall studio","Tune the snow to fit your perfect winter scene.");toggle(snow,"Falling snow","Enable or hide snowflakes","snow",true);slider(snow,"Snowfall speed","speed",50);slider(snow,"Snowflake size","size",50);slider(snow,"Snowfall density","density",55);choice(snow,"Snowflake design","snowStyle",new String[]{"Soft round snow","Classic six-point crystal","Minimal icy crystal"},1);
+ LinearLayout lights=section("🎄  Christmas lights","Bright, festive strands along the top of your screen.");toggle(lights,"Show Christmas lights","Switch the top decorations on or off","lights",true);choice(lights,"Light strand design","lightDesign",new String[]{"Festive garland","Draped Christmas lights","Retro glowing bulbs"},0);choice(lights,"Light color theme","palette",new String[]{"Classic Christmas","Winter wonderland","Warm golden glow","Candy-colored rainbow"},0);slider(lights,"Bulb size","lightSize",55);
+ LinearLayout fall=section("🎁  Falling decorations","Mix and match any combination of holiday favorites.");toggle(fall,"Candy canes","Striped Christmas treats","candy",false);toggle(fall,"Wrapped presents","Festive gift boxes","gifts",false);toggle(fall,"Christmas trees","Little decorated evergreens","trees",false);toggle(fall,"Snowmen","Friendly frosty characters","snowmen",false);toggle(fall,"Christmas bulbs","Glowing ornaments","bulbs",false);toggle(fall,"Golden stars","Twinkling stars","stars",false);toggle(fall,"Holiday confetti","A little extra celebration","confetti",false);
+ LinearLayout about=section("Made for your Pixel","SnowGlobe draws visual effects over other apps. It does not record your screen or intercept taps.");addText(about,"For best results, enable Display over other apps. Effects stop when the app process closes.",12,MUTED,false,0);
  setContentView(scroll);}
  private void refreshOverlay(){if(overlay!=null)overlay.invalidate();}
- private void startOverlay(){if(!Settings.canDrawOverlays(this)){startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));Toast.makeText(this,"Allow display over other apps, then return and tap Start",Toast.LENGTH_LONG).show();return;}if(overlay!=null)return;overlay=new SnowView(this,prefs);WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP|Gravity.START;try{wm.addView(overlay,p);}catch(Exception e){overlay=null;Toast.makeText(this,"Unable to start overlay",Toast.LENGTH_LONG).show();}}
+ private void startOverlay(){if(!Settings.canDrawOverlays(this)){startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));Toast.makeText(this,"Allow display over other apps, then return and tap Start",Toast.LENGTH_LONG).show();return;}if(overlay!=null){Toast.makeText(this,"Christmas magic is already running!",Toast.LENGTH_SHORT).show();return;}overlay=new SnowView(this,prefs);WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP|Gravity.START;try{wm.addView(overlay,p);Toast.makeText(this,"Christmas magic started!",Toast.LENGTH_SHORT).show();}catch(Exception e){overlay=null;Toast.makeText(this,"Unable to start overlay",Toast.LENGTH_LONG).show();}}
  private void stopOverlay(){if(overlay!=null){wm.removeView(overlay);overlay=null;}}
  @Override protected void onDestroy(){stopOverlay();super.onDestroy();}
 }
