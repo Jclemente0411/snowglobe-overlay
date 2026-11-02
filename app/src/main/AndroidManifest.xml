@@ -16,8 +16,14 @@
         <service android:name=".EffectsService" android:exported="false" android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE" android:value="Ongoing user-enabled touch-through holiday visual overlay with explicit pause control"/>
         </service>
+        <service android:name=".SnowGlobeTileService" android:exported="true"
+            android:label="SnowGlobe" android:icon="@drawable/ic_stat_snowflake"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE"/></intent-filter>
+        </service>
         <activity android:name=".StudioActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+            <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES"/><category android:name="android.intent.category.DEFAULT"/></intent-filter>
         </activity>
     </application>
 </manifest>
