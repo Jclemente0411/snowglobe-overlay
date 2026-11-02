@@ -40,6 +40,10 @@ jobs:
           unzip -q gradle-8.9-bin.zip
           ./gradle-8.9/bin/gradle --no-daemon :app:bundleRelease :app:lintRelease
           test -s app/build/outputs/bundle/release/app-release.aab
+          unzip -t app/build/outputs/bundle/release/app-release.aab
+          unzip -l app/build/outputs/bundle/release/app-release.aab | grep -q 'base/manifest/AndroidManifest.xml'
+          jarsigner -verify -strict app/build/outputs/bundle/release/app-release.aab
+          echo 'Release AAB archive, base manifest, and signing verified'
       - name: Verify release AAB signature and wallpaper registration
         run: |
           test -s app/build/outputs/bundle/release/app-release.aab
