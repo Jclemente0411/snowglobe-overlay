@@ -5,25 +5,28 @@ import android.content.Intent;
 import android.net.Uri;
 import android.provider.Settings;
 import android.graphics.Color;
-import android.graphics.PixelFormat;
-import android.view.Gravity;
-import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 public class MainActivity extends Activity {
- private WindowManager wm; private SnowView snow;
+ private LinearLayout root;
+ private void label(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(Color.WHITE);t.setPadding(0,12,0,18);root.addView(t);}
+ private void action(String text,Runnable r){Button b=new Button(this);b.setText(text);root.addView(b);b.setOnClickListener(v->r.run());}
  @Override public void onCreate(Bundle b){super.onCreate(b);
- LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setPadding(40,70,40,30);root.setBackgroundColor(0xff102238);
- TextView title=new TextView(this);title.setText("❄ SnowGlobe Christmas Overlay");title.setTextColor(Color.WHITE);title.setTextSize(24);root.addView(title);
- TextView info=new TextView(this);info.setText("Your normal wallpaper and icons stay untouched. Snow and blinking lights appear over regular apps. Android may restrict some screens.");info.setTextColor(Color.WHITE);info.setPadding(0,25,0,25);root.addView(info);
- Button start=new Button(this);start.setText("Start snow");root.addView(start);start.setOnClickListener(v->startSnow());
- Button stop=new Button(this);stop.setText("Stop snow");root.addView(stop);stop.setOnClickListener(v->stopSnow());
- setContentView(root);wm=(WindowManager)getSystemService(WINDOW_SERVICE);
+  ScrollView scroll=new ScrollView(this);root=new LinearLayout(this);root.setOrientation(1);root.setPadding(35,65,35,35);root.setBackgroundColor(0xff0b192e);scroll.addView(root);setContentView(scroll);
+  label("SnowGlobe ❄",30);label("Your personal Christmas studio",18);
+  label("Christmas magic",24);label("Holiday effects appear over supported apps. Return Home to enjoy them. Android may hide overlays on the secure lock screen.",16);
+  action("Start Christmas magic",()->{if(!Settings.canDrawOverlays(this)){startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName())));return;}Intent i=new Intent(this,HolidayService.class);i.setAction(HolidayService.START);startService(i);});
+  action("Pause effects",()->{Intent i=new Intent(this,HolidayService.class);i.setAction(HolidayService.STOP);startService(i);});
+  action("Go Home to enjoy",()->{Intent i=new Intent(Intent.ACTION_MAIN);i.addCategory(Intent.CATEGORY_HOME);startActivity(i);});
+  label("Christmas scenes",24);
+  action("Classic Christmas",()->preset(0));action("Winter Wonderland",()->preset(1));action("North Pole Party",()->preset(2));
+  label("Light placement",24);
+  action("Top garland",()->placement(0));action("Both sides",()->placement(1));action("Bottom garland",()->placement(2));action("Full frame",()->placement(3));action("Hanging icicles",()->placement(4));
+  label("Effects use a touch-through overlay. Lock-screen support depends on Android and your device.",14);
  }
- private void startSnow(){if(!Settings.canDrawOverlays(this)){Intent i=new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,Uri.parse("package:"+getPackageName()));startActivity(i);return;} if(snow!=null)return;
- snow=new SnowView(this);WindowManager.LayoutParams p=new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);p.gravity=Gravity.TOP|Gravity.START;wm.addView(snow,p);
- }
- private void stopSnow(){if(snow!=null){wm.removeView(snow);snow=null;}}
- @Override protected void onDestroy(){stopSnow();super.onDestroy();}
+ private void preset(int n){getSharedPreferences("holiday",0).edit().putInt("scene",n).apply();restart();}
+ private void placement(int n){getSharedPreferences("holiday",0).edit().putInt("lights",n).apply();restart();}
+ private void restart(){if(Settings.canDrawOverlays(this)){stopService(new Intent(this,HolidayService.class));startService(new Intent(this,HolidayService.class));}}
 }
