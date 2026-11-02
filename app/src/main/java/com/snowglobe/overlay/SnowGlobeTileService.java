@@ -43,12 +43,16 @@ public final class SnowGlobeTileService extends TileService {
         tile.setContentDescription("SnowGlobe over-app effects. "+status);
         if(Build.VERSION.SDK_INT>=29)tile.setSubtitle(status);tile.updateTile();
     }
-    @SuppressWarnings("deprecation")
     private void openStudio(){
         Intent intent=new Intent(this,StudioActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_CLEAR_TOP);
         try{
-            if(Build.VERSION.SDK_INT>=34)startActivityAndCollapse(PendingIntent.getActivity(this,15,intent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
-            else startActivityAndCollapse(intent);
+            if(Build.VERSION.SDK_INT>=34){
+                startActivityAndCollapse(PendingIntent.getActivity(this,15,intent,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE));
+            }else{
+                // User-initiated, unlocked launch on older Android. Do not use the deprecated
+                // collapse(Intent) API or broadcast private requests to close system panels.
+                startActivity(intent);
+            }
         }catch(RuntimeException error){Log.w("SnowGlobeTile","Could not open Studio",error);}
     }
     @Override public void onDestroy(){if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(changes);main.removeCallbacksAndMessages(null);super.onDestroy();}
