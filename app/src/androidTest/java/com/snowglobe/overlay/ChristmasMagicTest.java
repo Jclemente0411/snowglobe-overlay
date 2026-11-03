@@ -92,7 +92,10 @@ public class ChristmasMagicTest {
         try{
             p.edit().putBoolean("effectsEnabled",false).putBoolean("lights",false).putBoolean("snow",true)
                 .putBoolean("screenSparkles",false).putBoolean("edgeOnly",false)
-                .putInt("density",90).putInt("snowVisibility",0).putInt("snowShade",0).commit();
+                .putBoolean("candy",false).putBoolean("gifts",false).putBoolean("trees",false)
+                .putBoolean("snowmen",false).putBoolean("bulbs",false).putBoolean("stars",false)
+                .putBoolean("confetti",false).putInt("density",90)
+                .putInt("snowVisibility",0).putInt("snowShade",0).commit();
             Bitmap bmp=Bitmap.createBitmap(480,900,Bitmap.Config.ARGB_8888);
             try{
                 SceneRenderer scene=new SceneRenderer(3f,new SceneSettings(p));
@@ -112,6 +115,29 @@ public class ChristmasMagicTest {
                 assertFalse(PremiumPolicy.mayLaunchCheckout());
             }finally{bmp.recycle();}
         }finally{p.edit().putInt("snowVisibility",100).putInt("snowShade",0).putBoolean("edgeOnly",false).commit();}
+    }
+    @Test public void presetsDoNotResetGlobalVisibilityShadeOrTouchSafety(){
+        SharedPreferences p=context.getSharedPreferences("snowglobe",0);
+        try{
+            p.edit().putInt("snowVisibility",21).putInt("snowShade",2).putBoolean("edgeOnly",true)
+                .putBoolean("effectsEnabled",false).commit();
+            for(SceneCatalog.Preset scene:SceneCatalog.presets()){
+                assertTrue(SceneCatalog.apply(p,scene.name));
+                assertEquals(21,p.getInt("snowVisibility",-1));
+                assertEquals(2,p.getInt("snowShade",-1));
+                assertTrue(p.getBoolean("edgeOnly",false));
+                assertFalse(p.getBoolean("effectsEnabled",true));
+            }
+        }finally{p.edit().putInt("snowVisibility",100).putInt("snowShade",0).putBoolean("edgeOnly",false).commit();}
+    }
+    @Test public void snowControlsAreVisibleInStudio() throws Exception {
+        try(ActivityScenario<StudioActivity> launched=ActivityScenario.launch(StudioActivity.class)){
+            assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),20000));
+            UiObject2 tab=device.wait(Until.findObject(By.text("Snow")),5000);
+            assertNotNull(tab);tab.click();
+            assertTrue(device.wait(Until.hasObject(By.text("Make snow visible")),10000));
+            screenshot("18-snow-visibility-controls.png");
+        }
     }
     private int nonTransparent(Bitmap bmp){
         int[] pixels=new int[bmp.getWidth()*bmp.getHeight()];bmp.getPixels(pixels,0,bmp.getWidth(),0,0,bmp.getWidth(),bmp.getHeight());
