@@ -21,10 +21,12 @@ public class OverlaySafetyTest {
         device.wakeUp();device.executeShellCommand("wm dismiss-keyguard");
         device.executeShellCommand("appops set "+context.getPackageName()+" SYSTEM_ALERT_WINDOW allow");
         assertTrue(Settings.canDrawOverlays(context));
+        context.getSharedPreferences("snowglobe",0).edit().putBoolean("edgeOnly",false).commit();
     }
     @After public void cleanup() throws Exception {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(()->EffectsService.pauseNow(context));
         device.executeShellCommand("am force-stop com.snowglobe.taptest");
+        context.getSharedPreferences("snowglobe",0).edit().putBoolean("edgeOnly",false).commit();
     }
     private void awaitOverlay(boolean attached) {
         long until=SystemClock.uptimeMillis()+8000;
@@ -64,6 +66,26 @@ public class OverlaySafetyTest {
             assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),20000));
             assertTrue(device.wait(Until.hasObject(By.text("Start over-app effects")),8000));
             device.pressHome();awaitOverlay(false);
+        }
+    }
+    @Test public void topEdgeModeLeavesProtectedCentralButtonTouchable() throws Exception {
+        SharedPreferences prefs=context.getSharedPreferences("snowglobe",0);
+        prefs.edit().putBoolean("edgeOnly",true).putBoolean("effectsEnabled",true).commit();
+        try(ActivityScenario<StudioActivity> activity=ActivityScenario.launch(StudioActivity.class)){
+            assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),20000));
+            device.pressHome();
+            String launch=device.executeShellCommand("am start -W -n com.snowglobe.taptest/.TapProbeActivity");
+            assertFalse(launch,launch.contains("Error"));
+            awaitOverlay(true);
+            UiObject2 secure=device.wait(Until.findObject(By.text("PROTECTED 0")),8000);
+            assertNotNull(secure);
+            assertTrue("Test fixture button must be below the top-edge overlay",
+                secure.getVisibleBounds().centerY()>device.getDisplayHeight()*.30f);
+            secure.click();
+            assertTrue("Protected button outside the overlay should respond without defeating Android security",
+                device.wait(Until.hasObject(By.text("PROTECTED 1")),5000));
+            File output=new File(context.getExternalFilesDir(null),"screenshots");assertTrue(output.mkdirs()||output.isDirectory());
+            assertTrue(device.takeScreenshot(new File(output,"18-edge-mode-protected-tap.png")));
         }
     }
 }

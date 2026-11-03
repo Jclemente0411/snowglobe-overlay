@@ -113,13 +113,13 @@ class StudioActivity:ComponentActivity(){
     }
     private fun changeBoolean(key:String,value:Boolean){
         val e=prefs.edit().putBoolean(key,value)
-        if(key !in setOf("gentleMotion","reduceMotion","wallpaperSnow","wakeSnow","pixelColors"))e.putString("selectedScene","Custom")
+        if(key !in setOf("gentleMotion","reduceMotion","wallpaperSnow","wakeSnow","pixelColors","edgeOnly"))e.putString("selectedScene","Custom")
         e.apply()
     }
     private fun changeNumber(key:String,value:Int){
         val e=prefs.edit().putInt(key,value)
         if(key=="lightMotion")e.putBoolean("twinkle",value!=0)
-        if(key!="qualityMode")e.putString("selectedScene","Custom")
+        if(key !in setOf("qualityMode","snowVisibility","snowShade"))e.putString("selectedScene","Custom")
         e.apply()
     }
     private fun captureUndo(){undo=scenes.capture();undoName=prefs.getString("selectedScene","Custom")?:"Custom"}

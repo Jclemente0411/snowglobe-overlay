@@ -109,6 +109,12 @@ internal class HolidayActions(
                                     TextButton(onClick={sheet="saved"}){Text("My scenes")}
                                 }}
                                 item{HolidayScenes(prefs,state,actions)}
+                                item{HolidayCard("Touch-friendly mode","Less screen coverage when other apps need your taps."){
+                                    HolidayToggle(prefs,state,actions,"Effects near the top only","edgeOnly",false,
+                                        "Keep the falling effects in the top quarter of the screen.")
+                                    Text("This reduces the area covered by SnowGlobe, but it cannot guarantee checkout taps. Use Pause for payment or login screens.",
+                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
                                 if(state.canUndo)item{TextButton(onClick=actions.undo){Text("Undo last scene")}}
                                 item{Surface(onClick={sheet="appearance"},color=colors.primaryContainer,shape=RoundedCornerShape(24.dp)){
                                     Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){
@@ -128,6 +134,13 @@ internal class HolidayActions(
                             }
                             1->{
                                 item{HolidayPreview(prefs,sheet==null,150)}
+                                item{HolidayCard("Make snow visible","Adjust for light or dark app backgrounds without affecting touch security."){
+                                    HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
+                                    HolidayChoice(prefs,state,actions,"Snow shade","snowShade",
+                                        listOf("Bright white","Soft silver","Dark charcoal"),0)
+                                    Text("Bright snow is easier to see on dark screens. Charcoal snow is easier to see on light screens. Zero visibility hides the snow but not other enabled decorations.",
+                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
                                 item{HolidayCard("Snowfall","Choose your perfect winter flurry."){
                                     HolidayToggle(prefs,state,actions,"Falling snow","snow",true)
                                     HolidaySlider(prefs,state,actions,"Speed","speed",50);HolidaySlider(prefs,state,actions,"Size","size",50);HolidaySlider(prefs,state,actions,"Amount","density",55)
@@ -190,6 +203,8 @@ internal class HolidayActions(
                         else->{
                             item{OutlinedButton(onClick={sheet="setup"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pixel setup guide")}}
                             item{HolidayCard("Safe taps & quick control","Pause before shopping or protected screens."){
+                                HolidayToggle(prefs,state,actions,"Top-edge-only effects","edgeOnly",false,
+                                    "A smaller overlay leaves most of the screen uncovered. Checkout may still require Pause.")
                                 OutlinedButton(onClick=actions.pauseAndOpenPlay,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pause & open Google Play")}
                                 OutlinedButton(onClick=actions.addTile,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Add Quick Settings control")}
                                 Text("Some apps reject touches whenever an overlay is present. Pause removes our window completely. The Quick Settings tile controls effects; it cannot place snow over the notification shade.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)

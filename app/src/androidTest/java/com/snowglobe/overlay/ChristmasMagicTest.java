@@ -87,4 +87,39 @@ public class ChristmasMagicTest {
             }
         }finally{bitmap.recycle();}
     }
+    @Test public void snowVisibilityAndShadeAffectRenderedPixelsWithoutChangingSafetyState(){
+        SharedPreferences p=context.getSharedPreferences("snowglobe",0);
+        try{
+            p.edit().putBoolean("effectsEnabled",false).putBoolean("lights",false).putBoolean("snow",true)
+                .putBoolean("screenSparkles",false).putBoolean("edgeOnly",false)
+                .putInt("density",90).putInt("snowVisibility",0).putInt("snowShade",0).commit();
+            Bitmap bmp=Bitmap.createBitmap(480,900,Bitmap.Config.ARGB_8888);
+            try{
+                SceneRenderer scene=new SceneRenderer(3f,new SceneSettings(p));
+                scene.resize(480,900,0,0,3f);
+                scene.draw(new Canvas(bmp),false);
+                assertEquals(0,nonTransparent(bmp));
+                p.edit().putInt("snowVisibility",100).commit();
+                scene.apply(new SceneSettings(p));scene.draw(new Canvas(bmp),false);
+                assertTrue("Bright snow must draw",nonTransparent(bmp)>100);
+                long bright=luma(bmp);
+                bmp.eraseColor(0);
+                p.edit().putInt("snowShade",2).commit();
+                scene.apply(new SceneSettings(p));scene.draw(new Canvas(bmp),false);
+                assertTrue("Dark snow must draw",nonTransparent(bmp)>100);
+                assertTrue("Charcoal flakes must be darker than white flakes",luma(bmp)<bright);
+                assertFalse("Changing snow never starts the overlay",EffectsService.isActive());
+                assertFalse(PremiumPolicy.mayLaunchCheckout());
+            }finally{bmp.recycle();}
+        }finally{p.edit().putInt("snowVisibility",100).putInt("snowShade",0).putBoolean("edgeOnly",false).commit();}
+    }
+    private int nonTransparent(Bitmap bmp){
+        int[] pixels=new int[bmp.getWidth()*bmp.getHeight()];bmp.getPixels(pixels,0,bmp.getWidth(),0,0,bmp.getWidth(),bmp.getHeight());
+        int count=0;for(int color:pixels)if((color>>>24)!=0)count++;return count;
+    }
+    private long luma(Bitmap bmp){
+        int[] pixels=new int[bmp.getWidth()*bmp.getHeight()];bmp.getPixels(pixels,0,bmp.getWidth(),0,0,bmp.getWidth(),bmp.getHeight());
+        long sum=0;for(int color:pixels)if((color>>>24)!=0)sum+=((color>>16)&255)+((color>>8)&255)+(color&255);
+        return sum;
+    }
 }
