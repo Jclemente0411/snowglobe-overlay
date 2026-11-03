@@ -53,7 +53,7 @@ public final class SceneRenderer {
         hill.lineTo(width,height);hill.close();layoutLights();
     }
     public void resetClock(){last=0;}
-    public void wake(){resetClock();if(settings.wakeSnow&&!settings.reduced){wake=3f;for(int i=0;i<16;i++){y[i]=random.nextFloat()*.35f;x[i]=random.nextFloat();}}}
+    public void wake(){resetClock();if(settings.wakeSnow&&settings.snowVisibility>0&&!settings.reduced){wake=3f;for(int i=0;i<16;i++){y[i]=random.nextFloat()*.35f;x[i]=random.nextFloat();}}}
     public boolean animated(){return wake>0||hasBurst()||settings.animated(wallpaper);}
     private boolean hasBurst(){for(float a:ba)if(a<2.2f)return true;return false;}
     public void touch(float px,float py) {
@@ -74,11 +74,20 @@ public final class SceneRenderer {
         else y[i]=dy>0?-marginY:1+marginY;
     }
     private void newGlint(int i){gx[i]=.08f+random.nextFloat()*.84f;gy[i]=.12f+random.nextFloat()*.73f;gl[i]=3f+random.nextFloat()*2.5f;}
+    private int activeParticles() {
+        boolean snowVisible=(settings.snow||wallpaper&&settings.wallpaperSnow||wallpaper&&wake>0)
+            &&settings.snowVisibility>0f;
+        boolean decorationVisible=settings.decorations.length>0;
+        boolean wallpaperSnow=wallpaper&&settings.wallpaperSnow&&settings.snowVisibility>0f;
+        boolean wakeSnow=wallpaper&&wake>0&&settings.snowVisibility>0f;
+        return SnowVisualPolicy.particleCount(settings.count,snowVisible,decorationVisible,
+            wallpaperSnow,wakeSnow,settings.edgeOnly&&!wallpaper);
+    }
     public void advance(long frameNanos) {
         float dt=MotionMath.seconds(last,frameNanos);last=frameNanos;time+=dt;wake=Math.max(0,wake-dt);
         if(settings.reduced)return;
         float dx=MotionMath.directionX(settings.direction),dy=MotionMath.directionY(settings.direction);
-        for(int i=0;i<CAPACITY;i++) {
+        for(int i=0,active=activeParticles();i<active;i++) {
             float depth=.55f+(i%3)*.32f;
             float v=dp(35)*settings.speed*speed[i]*depth*(settings.gentle?.72f:1f);
             float gust=(float)Math.sin(time*.65f+phase[i])*dp(9)*settings.wind;
@@ -181,21 +190,25 @@ public final class SceneRenderer {
         }
     }
     private void drawFlake(Canvas c,float px,float py,float radius,float rotation,int alpha){
+        int opacity=SnowVisualPolicy.alpha(alpha,settings.snowVisibility);
+        if(opacity<=0)return;
+        int tint=SnowVisualPolicy.color(settings.snowShade);
         c.save();c.translate(px,py);c.rotate(rotation);
-        if(settings.flake==0){fill(0xffeefaff,alpha);c.drawCircle(0,0,radius*.55f,ink);}
-        else {c.scale(radius,radius);line(0xffeffaff,.15f,alpha);c.drawPath(settings.flake==1?snowCrystal:snowStar,ink);}
+        if(settings.flake==0){fill(tint,opacity);c.drawCircle(0,0,radius*.55f,ink);}
+        else {c.scale(radius,radius);line(tint,.15f,opacity);c.drawPath(settings.flake==1?snowCrystal:snowStar,ink);}
         c.restore();
     }
     public void draw(Canvas c,boolean background){
         if(background){c.drawRect(0,0,width,height,backgroundPaint);fill(0xff112b3e,255);c.drawPath(hill,ink);}
-        int count=Math.min(CAPACITY,settings.count);
-        boolean snow=settings.snow;
-        if(wallpaper&&settings.wallpaperSnow){snow=true;count=Math.max(48,count);}
-        if(wake>0&&wallpaper){snow=true;count=Math.max(64,count);}
+        int count=activeParticles();
+        boolean snow=settings.snow&&settings.snowVisibility>0;
+        if(wallpaper&&settings.wallpaperSnow&&settings.snowVisibility>0)snow=true;
+        if(wake>0&&wallpaper&&settings.snowVisibility>0)snow=true;
         int total=settings.decorations.length;
         for(int i=0;i<count;i++){
             float depth=.55f+(i%3)*.32f,px=x[i]*width,py=y[i]*height;
             float rotation=settings.reduced||settings.spin==0?0:angle[i];
+            if(px<-dp(65)||px>width+dp(65)||py<-dp(80)||py>height+dp(80))continue;
             if(total>0&&i%4==0){int type=settings.decorations[(i/4)%total];
                 if(type==4){float e=settings.brightness*MotionMath.brightness(settings.fallingBlink?2:0,time,i,settings.tempo,settings.reduced);
                     drawBulb(c,px,py,dp(.47f)*settings.size*depth,rotation,i,e,.95f);}

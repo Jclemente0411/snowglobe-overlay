@@ -25,6 +25,7 @@ public class EffectsService extends Service {
     private SharedPreferences prefs;
     private WindowManager manager;
     private SnowView view;
+    private int attachedHeight=0;
     private boolean foregroundStarted, failed;
     private final Runnable reconcileTask=this::reconcile;
     private final SharedPreferences.OnSharedPreferenceChangeListener settingsChanged=(p,key)->{
@@ -61,6 +62,7 @@ public class EffectsService extends Service {
         getSystemService(NotificationManager.class).createNotificationChannel(channel);
         IntentFilter filter=new IntentFilter(Intent.ACTION_SCREEN_OFF);filter.addAction(Intent.ACTION_SCREEN_ON);
         filter.addAction(Intent.ACTION_USER_PRESENT);filter.addAction(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED);
+        filter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         if(Build.VERSION.SDK_INT>=33)registerReceiver(screenChanges,filter,Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(screenChanges,filter);
     }
@@ -100,6 +102,12 @@ public class EffectsService extends Service {
         if(!OverlaySafetyPolicy.shouldAttach(enabled,permitted,studio,interactive,locked,wallpaper)){
             detachOverlay();state(desired);if(!enabled||!permitted)stopSelf();return;
         }
+        // Window geometry is what Android uses to classify obscured touches.
+        // Restricting the overlay to the top band is an opt-in convenience, not a
+        // bypass for protected payment controls.
+        int targetHeight=OverlayWindowPolicy.height(windowHeight(),getResources().getDisplayMetrics().density,
+            prefs.getBoolean("edgeOnly",false));
+        if(view!=null&&attachedHeight!=targetHeight)detachOverlay();
         if(view==null){
             SnowView candidate=null;
             try{
@@ -109,11 +117,11 @@ public class EffectsService extends Service {
                 if(alpha<=0f)throw new IllegalStateException("Android does not permit a touch-through overlay");
                 candidate=new SnowView(getApplicationContext(),prefs);
                 candidate.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-                WindowManager.LayoutParams params=new WindowManager.LayoutParams(-1,-1,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams params=new WindowManager.LayoutParams(-1,targetHeight,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN|WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT);
                 params.gravity=Gravity.TOP|Gravity.START;params.alpha=alpha;params.setTitle("SnowGlobe visual effects");
-                manager.addView(candidate,params);view=candidate;
+                manager.addView(candidate,params);view=candidate;attachedHeight=targetHeight;
             }catch(RuntimeException error){
                 if(candidate!=null)try{manager.removeViewImmediate(candidate);}catch(RuntimeException ignored){}
                 fail(error);return;
@@ -121,11 +129,18 @@ public class EffectsService extends Service {
         }
         state("visible");
     }
+    private int windowHeight(){
+        if(Build.VERSION.SDK_INT>=30){
+            android.view.WindowMetrics metrics=manager.getCurrentWindowMetrics();
+            if(metrics!=null)return metrics.getBounds().height();
+        }
+        return getResources().getDisplayMetrics().heightPixels;
+    }
     private void fail(RuntimeException error){
         Log.e("SnowGlobeEffects","Overlay stopped safely",error);failed=true;detachOverlay();state("error");stopSelf();
     }
     private void detachOverlay(){
-        SnowView old=view;view=null;
+        SnowView old=view;view=null;attachedHeight=0;
         if(old!=null){old.setAnimating(false);try{manager.removeViewImmediate(old);}catch(RuntimeException ignored){}}
     }
     @Override public void onDestroy(){
