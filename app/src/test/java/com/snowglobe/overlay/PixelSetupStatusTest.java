@@ -9,6 +9,9 @@ public class PixelSetupStatusTest {
         assertEquals("On · hidden while editing",PixelSetupStatus.overlay(true,true,true,""));
         assertEquals("Start failed · retry in Studio",PixelSetupStatus.overlay(true,false,true,"error"));
     }
+    @Test public void backgroundRestartsAreReportedHonestly(){
+        assertEquals("Android blocked auto-start · open Studio",PixelSetupStatus.overlay(true,false,true,"background_blocked"));
+    }
     @Test public void lockSelectionIsNeverInferredOnOldSystem(){
         assertEquals("Check in Android wallpaper settings",PixelSetupStatus.wallpaper(false,true));
         assertEquals("Choose lock-screen wallpaper",PixelSetupStatus.wallpaper(true,false));

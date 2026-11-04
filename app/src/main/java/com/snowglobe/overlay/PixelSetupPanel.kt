@@ -40,6 +40,8 @@ import androidx.compose.ui.unit.dp
     Column(verticalArrangement=Arrangement.spacedBy(16.dp)){
         Text("Make your Pixel feel like Christmas. These are separate Android features, so setup stays honest and reversible.",
             style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
+        Text("Once enabled, SnowGlobe checks again after unlocking and may restore effects after a reboot or app update. Pause stays paused. Android can still stop a background service; opening Studio is the manual fallback.",
+            style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
         SetupStep("01","Snow over your apps",
             PixelSetupStatus.overlay(state.permission,EffectsService.isActive(),
                 prefs.getBoolean("effectsEnabled",false),prefs.getString("_serviceState","")),
@@ -48,7 +50,7 @@ import androidx.compose.ui.unit.dp
             {actions.enable(!EffectsService.isActive())})
         SetupStep("02","Snow on your lock screen",
             PixelSetupStatus.wallpaper(state.lockCheckAvailable,state.lockApplied),
-            "Android's live wallpaper picker replaces the selected wallpaper. Choose the lock screen when offered; fingerprint controls remain with Android.",
+            "Snow over apps cannot cover the secure lock screen. For snow behind the clock, choose SnowGlobe from the live wallpaper picker. This replaces your lock-screen picture, but leaves fingerprint controls to Android.",
             "Open wallpaper picker",actions.wallpaper)
         SetupStep("03","Your control-panel switch",
             PixelSetupStatus.quickTile(),

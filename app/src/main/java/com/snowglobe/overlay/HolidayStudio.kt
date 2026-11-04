@@ -207,12 +207,12 @@ internal class HolidayActions(
                                     "A smaller overlay leaves most of the screen uncovered. Checkout may still require Pause.")
                                 OutlinedButton(onClick=actions.pauseAndOpenPlay,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pause & open Google Play")}
                                 OutlinedButton(onClick=actions.addTile,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Add Quick Settings control")}
-                                Text("Some apps reject touches whenever an overlay is present. Pause removes our window completely. The Quick Settings tile controls effects; it cannot place snow over the notification shade.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                Text("Enabled effects automatically recheck after unlock. Pause always stays paused. If Android stops the service, use Start or the Quick Settings tile. Protected apps may still reject taps until Pause; snow cannot cover the notification shade.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                             }}
                             item{HolidayCard("Lock-screen snowfall","Selected separately through Android."){
                                 Text(when{!state.lockCheckAvailable->"Check the selection in Android's wallpaper picker.";state.lockApplied->"Selected for the lock screen.";else->"Not yet selected for the lock screen."},color=colors.primary)
                                 Spacer(Modifier.height(8.dp))
-                                Text("SnowGlobe replaces the selected wallpaper. Choose Lock screen or Home and lock screens when Android offers it.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                Text("Over-app snow cannot appear on the secure lock screen. For effects behind the clock, select SnowGlobe as the live wallpaper. This replaces your lock-screen picture; choose Lock screen or both when offered.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 OutlinedButton(onClick=actions.wallpaper,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Set lock-screen wallpaper")}
                                 HolidayToggle(prefs,state,actions,"Snow on wallpaper","wallpaperSnow",true)
                                 HolidayToggle(prefs,state,actions,"Flurry when the screen wakes","wakeSnow",true)

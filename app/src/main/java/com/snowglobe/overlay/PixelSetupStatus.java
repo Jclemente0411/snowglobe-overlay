@@ -7,6 +7,7 @@ public final class PixelSetupStatus {
         if(!permission)return "Permission needed";
         if(running)return "On · hidden while editing";
         if("error".equals(serviceState))return "Start failed · retry in Studio";
+        if("background_blocked".equals(serviceState))return "Android blocked auto-start · open Studio";
         if(requested)return "Ready · tap Start";
         return "Paused · tap Start";
     }

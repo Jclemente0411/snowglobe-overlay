@@ -26,3 +26,13 @@ if meta['versionCode']>=15:
         assert forbidden not in permissions,'Unexpected permission: '+forbidden
     assert not any(s.attrib.get(a+'permission')=='android.permission.BIND_ACCESSIBILITY_SERVICE' for s in services)
 print('VERIFIED:',meta)
+
+if meta['versionCode']>=19:
+    assert 'android.permission.RECEIVE_BOOT_COMPLETED' in permissions,'Boot restore permission missing'
+    receivers=[r for r in app.findall('receiver') if r.attrib.get(a+'name','').endswith('.EffectsStartupReceiver')]
+    assert len(receivers)==1,'Missing boot/update receiver'
+    receiver=receivers[0]
+    assert receiver.attrib.get(a+'exported')=='false','Resume receiver must be private'
+    actions={x.attrib.get(a+'name') for flt in receiver.findall('intent-filter') for x in flt.findall('action')}
+    assert 'android.intent.action.BOOT_COMPLETED' in actions,'Boot receiver action missing'
+    assert 'android.intent.action.MY_PACKAGE_REPLACED' in actions,'Update receiver action missing'
