@@ -27,6 +27,17 @@ public class EffectsService extends Service {
     private SnowView view;
     private int attachedHeight=0;
     private boolean foregroundStarted, failed;
+    // A screen-on broadcast may arrive before the keyguard has finished dismissing.
+    // Retry for a short, bounded interval; never run a permanent timer.
+    private int unlockChecks;
+    private final Runnable unlockCheckTask=new Runnable(){
+        @Override public void run(){
+            if(!shouldCheckUnlock())return;
+            unlockChecks++;
+            reconcile();
+            if(shouldCheckUnlock())MAIN.postDelayed(this,UnlockResumePolicy.CHECK_DELAY_MS);
+        }
+    };
     private final Runnable reconcileTask=this::reconcile;
     private final SharedPreferences.OnSharedPreferenceChangeListener settingsChanged=(p,key)->{
         if ("effectsEnabled".equals(key) && !p.getBoolean(key,true)) {
@@ -37,10 +48,21 @@ public class EffectsService extends Service {
         }
     };
     private final BroadcastReceiver screenChanges=new BroadcastReceiver(){
-        @Override public void onReceive(Context context,Intent intent){reconcile();}
+        @Override public void onReceive(Context context,Intent intent){
+            String action=intent==null?"":intent.getAction();
+            if(Intent.ACTION_SCREEN_OFF.equals(action)){
+                cancelUnlockChecks();reconcile();return;
+            }
+            reconcile();
+            if(Intent.ACTION_SCREEN_ON.equals(action)||Intent.ACTION_USER_PRESENT.equals(action)
+                ||Intent.ACTION_CONFIGURATION_CHANGED.equals(action))scheduleUnlockChecks();
+        }
     };
     public static void studioStarted(Object owner){studioOwners.add(owner);refreshVisibility();}
-    public static void studioStopped(Object owner){studioOwners.remove(owner);refreshVisibility();}
+    public static void studioStopped(Object owner){
+        studioOwners.remove(owner);refreshVisibility();
+        if(current!=null)current.scheduleUnlockChecks();
+    }
     public static void refreshVisibility(){if(current!=null)current.reconcile();}
     public static boolean isActive(){return current!=null&&current.foregroundStarted&&!current.failed
         &&current.prefs.getBoolean("effectsEnabled",true)&&Settings.canDrawOverlays(current);}
@@ -66,6 +88,21 @@ public class EffectsService extends Service {
         if(Build.VERSION.SDK_INT>=33)registerReceiver(screenChanges,filter,Context.RECEIVER_NOT_EXPORTED);
         else registerReceiver(screenChanges,filter);
     }
+    private boolean shouldCheckUnlock(){
+        if(prefs==null)return false;
+        PowerManager power=getSystemService(PowerManager.class);
+        return foregroundStarted&&!failed&&
+            UnlockResumePolicy.shouldRetry(unlockChecks,prefs.getBoolean("effectsEnabled",false),
+                Settings.canDrawOverlays(this),power!=null&&power.isInteractive(),
+                !studioOwners.isEmpty(),isOverlayAttached());
+    }
+    private void cancelUnlockChecks(){
+        MAIN.removeCallbacks(unlockCheckTask);unlockChecks=0;
+    }
+    private void scheduleUnlockChecks(){
+        MAIN.removeCallbacks(unlockCheckTask);unlockChecks=0;
+        if(shouldCheckUnlock())MAIN.postDelayed(unlockCheckTask,UnlockResumePolicy.CHECK_DELAY_MS);
+    }
     private Notification notification(){
         PendingIntent open=PendingIntent.getActivity(this,0,new Intent(this,StudioActivity.class),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         PendingIntent pause=PendingIntent.getService(this,1,new Intent(this,EffectsService.class).setAction(STOP),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
@@ -83,13 +120,14 @@ public class EffectsService extends Service {
     }
     @Override public int onStartCommand(Intent intent,int flags,int id){
         String action=intent==null?START:intent.getAction();
-        if(STOP.equals(action)){pauseNow(this);return START_NOT_STICKY;}
+        if(STOP.equals(action)){cancelUnlockChecks();pauseNow(this);return START_NOT_STICKY;}
         if(!prefs.getBoolean("effectsEnabled",true)){state("paused");stopSelf();return START_NOT_STICKY;}
         if(!Settings.canDrawOverlays(this)){state("permission_required");stopSelf();return START_NOT_STICKY;}
         try{
             if(Build.VERSION.SDK_INT>=34)startForeground(101,notification(),ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE);
             else startForeground(101,notification());
-            foregroundStarted=true;failed=false;reconcile();return failed?START_NOT_STICKY:START_STICKY;
+            foregroundStarted=true;failed=false;reconcile();scheduleUnlockChecks();
+            return failed?START_NOT_STICKY:START_STICKY;
         }catch(RuntimeException error){fail(error);return START_NOT_STICKY;}
     }
     private void reconcile(){
@@ -137,6 +175,7 @@ public class EffectsService extends Service {
         return getResources().getDisplayMetrics().heightPixels;
     }
     private void fail(RuntimeException error){
+        cancelUnlockChecks();
         Log.e("SnowGlobeEffects","Overlay stopped safely",error);failed=true;detachOverlay();state("error");stopSelf();
     }
     private void detachOverlay(){
@@ -144,6 +183,7 @@ public class EffectsService extends Service {
         if(old!=null){old.setAnimating(false);try{manager.removeViewImmediate(old);}catch(RuntimeException ignored){}}
     }
     @Override public void onDestroy(){
+        cancelUnlockChecks();
         MAIN.removeCallbacks(reconcileTask);
         if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(settingsChanged);
         try{unregisterReceiver(screenChanges);}catch(IllegalArgumentException ignored){}
