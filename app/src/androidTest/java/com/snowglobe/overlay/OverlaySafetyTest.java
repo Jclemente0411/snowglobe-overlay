@@ -21,7 +21,7 @@ public class OverlaySafetyTest {
         device.wakeUp();device.executeShellCommand("wm dismiss-keyguard");
         device.executeShellCommand("appops set "+context.getPackageName()+" SYSTEM_ALERT_WINDOW allow");
         assertTrue(Settings.canDrawOverlays(context));
-        context.getSharedPreferences("snowglobe",0).edit().putBoolean("edgeOnly",false).commit();
+        context.getSharedPreferences("snowglobe",0).edit().putBoolean("_coverageRestored0215",true).putBoolean("edgeOnly",false).commit();
     }
     @After public void cleanup() throws Exception {
         InstrumentationRegistry.getInstrumentation().runOnMainSync(()->EffectsService.pauseNow(context));
