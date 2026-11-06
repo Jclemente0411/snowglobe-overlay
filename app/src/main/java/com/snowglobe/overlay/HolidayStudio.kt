@@ -111,10 +111,19 @@ internal class HolidayActions(
                                         listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
                                     HolidayToggle(prefs,state,actions,"Animated RGB lights","keyboardRgb",true,
                                         "Lights animate only while the keyboard is open.")
+                                    HolidayChoice(prefs,state,actions,"Christmas RGB effect","keyboardRgbPattern",
+                                        listOf("Festive wave","Twinkling lights","Steady glow"),0)
+                                    HolidaySlider(prefs,state,actions,"RGB brightness","keyboardRgbBrightness",75)
                                     HolidaySlider(prefs,state,actions,"RGB animation speed","keyboardRgbSpeed",45)
+                                    HolidaySlider(prefs,state,actions,"Keyboard height","keyboardHeight",60)
+                                    HolidayToggle(prefs,state,actions,"Word suggestions","keyboardSuggestions",true,
+                                        "Show local English suggestions above the keys.")
+                                    HolidayToggle(prefs,state,actions,"Auto-correct common typos","keyboardAutoCorrect",true,
+                                        "Correct common spelling errors when you press Space. Backspace immediately after a correction to undo it.")
                                     HolidayToggle(prefs,state,actions,"Keypress haptics","keyboardHaptics",true,
                                         "Gentle tactile feedback when typing.")
-                                    Text("Typing stays on your device. This beta keyboard does not yet include Gboard-style suggestions, swipe typing or multilingual autocorrect. Switch back to Gboard at any time.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                    Text("Christmas waves and key sparks stop with Reduce Motion or Battery Saver. Text correction runs on-device and is disabled for passwords or private input fields. This keyboard is not the proprietary Gboard engine and does not yet offer glide typing, voice input, full multilingual prediction or ML proofreading.",
+                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                                 item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
                                     HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
