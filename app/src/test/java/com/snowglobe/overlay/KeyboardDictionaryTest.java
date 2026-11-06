@@ -11,6 +11,9 @@ public class KeyboardDictionaryTest {
         assertEquals("keyboard",KeyboardDictionary.correct("keybord"));
         assertEquals("beautiful",KeyboardDictionary.correct("beutiful"));
         assertEquals("the",KeyboardDictionary.correct("the"));
+        assertEquals("don\'t",KeyboardDictionary.correct("dont"));
+        assertEquals("I\'M",KeyboardDictionary.correct("IM"));
+        assertEquals("its",KeyboardDictionary.correct("its"));
         assertEquals("snowglobe",KeyboardDictionary.correct("snowglobe"));
         assertEquals("nasa",KeyboardDictionary.correct("nasa"));
     }
