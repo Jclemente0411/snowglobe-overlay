@@ -116,6 +116,7 @@ internal class HolidayActions(
                                     HolidaySlider(prefs,state,actions,"RGB brightness","keyboardRgbBrightness",75)
                                     HolidaySlider(prefs,state,actions,"RGB animation speed","keyboardRgbSpeed",45)
                                     HolidaySlider(prefs,state,actions,"Keyboard height","keyboardHeight",60)
+                                    Text("Keys are lifted above the Android gesture bar. Full-screen snowfall is in Snow settings; use top-only effects if an app blocks protected touches.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                     HolidayToggle(prefs,state,actions,"Word suggestions","keyboardSuggestions",true,
                                         "Show local English suggestions above the keys.")
                                     HolidayToggle(prefs,state,actions,"Auto-correct common typos","keyboardAutoCorrect",true,
