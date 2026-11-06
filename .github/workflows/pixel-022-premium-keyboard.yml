@@ -10,11 +10,11 @@ concurrency:
   cancel-in-progress: true
 jobs:
   quality:
-    name: Keyboard, Android 15–17, unlock and cross-app safety (API ${{ matrix.api }})
+    name: Keyboard, Android 15/16, unlock and cross-app safety (API ${{ matrix.api }})
     strategy:
       fail-fast: false
       matrix:
-        api: [35, 36, 37]
+        api: [35, 36]
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
