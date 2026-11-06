@@ -220,6 +220,7 @@ final class FastKeyboardView extends View {
                 AccessibilityNodeInfo host=AccessibilityNodeInfo.obtain(FastKeyboardView.this);
                 host.setClassName(FastKeyboardView.class.getName());
                 host.setPackageName(getContext().getPackageName());
+                host.setVisibleToUser(true);
                 for(int i=0;i<keys.size();i++)host.addChild(FastKeyboardView.this,i);
                 return host;
             }
@@ -234,6 +235,7 @@ final class FastKeyboardView extends View {
             info.setText(label);
             info.setContentDescription(label);
             info.setClickable(true);info.setEnabled(true);
+            info.setFocusable(true);info.setVisibleToUser(true);
             info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK);
             Rect bounds=new Rect(Math.round(key.hitBox.left),Math.round(key.hitBox.top),
                  Math.round(key.hitBox.right),Math.round(key.hitBox.bottom));
