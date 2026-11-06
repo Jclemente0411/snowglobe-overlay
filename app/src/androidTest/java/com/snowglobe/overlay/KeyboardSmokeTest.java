@@ -26,8 +26,8 @@ public final class KeyboardSmokeTest {
         previousIme=device.executeShellCommand("settings get secure default_input_method").trim();
         device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 1");
         SharedPreferences p=context.getSharedPreferences("snowglobe",0);
-        p.edit().putBoolean("effectsEnabled",false).putBoolean("keyboardRgb",false)
-            .putBoolean("keyboardAutoCorrect",true).putBoolean("keyboardSuggestions",true).commit();
+        p.edit().putBoolean("effectsEnabled",false).putBoolean("keyboardRgb",true).putInt("keyboardRgbBrightness",90)
+            .putInt("keyboardRgbPattern",0).putBoolean("keyboardAutoCorrect",true).putBoolean("keyboardSuggestions",true).commit();
     }
     @After public void cleanup() throws Exception {
         device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 0");
