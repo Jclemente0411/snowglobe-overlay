@@ -49,7 +49,7 @@ internal class HolidayActions(
     val enable:(Boolean)->Unit,val pauseAndOpenPlay:()->Unit,val addTile:()->Unit,val wallpaper:()->Unit,
     val setBoolean:(String,Boolean)->Unit,val setNumber:(String,Int)->Unit,val preset:(String)->Unit,
     val undo:()->Unit,val save:(Int,String)->Unit,val load:(Int)->Unit,val delete:(Int)->Unit,
-    val systemBars:(Boolean)->Unit)
+    val systemBars:(Boolean)->Unit,val keyboardSettings:()->Unit,val keyboardPicker:()->Unit)
 
 @Composable internal fun HolidayStudio(prefs:SharedPreferences,scenes:SavedScenesStore,state:HolidayUiState,actions:HolidayActions){
     val context=LocalContext.current
@@ -104,6 +104,18 @@ internal class HolidayActions(
                             0->{
                                 item{HolidayHero(prefs,state,actions,previewActive=sheet==null)}
                                 item{PixelSetupSummary(prefs,state,onDetails={sheet="setup"})}
+                                item{HolidayCard("Christmas RGB keyboard","An optional SnowGlobe keyboard with festive lights. Enable it in Android settings, then select it as your keyboard."){
+                                    OutlinedButton(onClick=actions.keyboardSettings,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("1. Enable Christmas keyboard")}
+                                    OutlinedButton(onClick=actions.keyboardPicker,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("2. Choose Christmas keyboard")}
+                                    HolidayChoice(prefs,state,actions,"Keyboard theme","keyboardTheme",
+                                        listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
+                                    HolidayToggle(prefs,state,actions,"Animated RGB lights","keyboardRgb",true,
+                                        "Lights animate only while the keyboard is open.")
+                                    HolidaySlider(prefs,state,actions,"RGB animation speed","keyboardRgbSpeed",45)
+                                    HolidayToggle(prefs,state,actions,"Keypress haptics","keyboardHaptics",true,
+                                        "Gentle tactile feedback when typing.")
+                                    Text("Typing stays on your device. This beta keyboard does not yet include Gboard-style suggestions, swipe typing or multilingual autocorrect. Switch back to Gboard at any time.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
                                 item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
                                     HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
                                     Text("0% hides flakes; 100% makes them brightest. Snow amount and speed are in the Snow tab.",

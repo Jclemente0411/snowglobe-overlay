@@ -1,0 +1,182 @@
+package com.snowglobe.overlay;
+
+import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
+import android.graphics.drawable.RippleDrawable;
+import android.content.res.ColorStateList;
+import android.view.HapticFeedbackConstants;
+import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
+import android.inputmethodservice.InputMethodService;
+import android.view.Gravity;
+import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputConnection;
+import android.widget.Button;
+import android.view.ViewConfiguration;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.view.MotionEvent;
+
+/**
+ * Explicitly user-selected keyboard. Never draws a SYSTEM_ALERT_WINDOW,
+ * reads keystrokes into storage, sends text to a network, or collects analytics.
+ * A basic beta keyboard, not a replacement for Gboard's language engine.
+ */
+public final class ChristmasKeyboardService extends InputMethodService {
+    private SharedPreferences preferences;
+    private final Handler handler=new Handler(Looper.getMainLooper());
+    private boolean active=false;
+    private int pulse=0;
+    private LinearLayout lights;
+    private float touchStartX,touchStartY;
+    private boolean touchCancelled;
+    private final Runnable animate=new Runnable(){public void run(){if(!active||lights==null)return;int speed=preferences.getInt("keyboardRgbSpeed",45);pulse++;for(int i=0;i<lights.getChildCount();i++){TextView bulb=(TextView)lights.getChildAt(i);int theme=preferences.getInt("keyboardTheme",0);int[] palette=palette(theme);int color=palette[(i+pulse/2)%palette.length];bulb.setTextColor(color);}handler.postDelayed(this,Math.max(85,400-speed*3));}};
+    private boolean shifted = true;
+    private boolean symbols = false;
+    private LinearLayout root;
+    private final java.util.ArrayList<TextView> letters=new java.util.ArrayList<>();
+
+    private final int[] bulbs = {0xffff5555,0xff61df91,0xffffd26a,0xff69b9ff,0xffff83cf};
+    private int[] palette(int theme){
+        if(theme==1)return new int[]{0xff91e4ff,0xffd9edff,0xff78b7ff};
+        if(theme==2)return new int[]{0xffffc56a,0xffffedb1,0xffff8f62};
+        return bulbs;
+    }
+    @Override public void onCreate(){super.onCreate();preferences=getSharedPreferences("snowglobe",MODE_PRIVATE);}
+    @Override public void onFinishInputView(boolean finishingInput){active=false;handler.removeCallbacks(animate);super.onFinishInputView(finishingInput);}
+    @Override public void onDestroy(){active=false;handler.removeCallbacks(animate);super.onDestroy();}
+    private int dp(float n){return Math.round(n*getResources().getDisplayMetrics().density);}
+    private GradientDrawable background(int fill,int stroke,int radius){
+        GradientDrawable d=new GradientDrawable();d.setColor(fill);d.setCornerRadius(dp(radius));
+        d.setStroke(dp(1),stroke);return d;
+    }
+    @Override public View onCreateInputView(){
+        root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(3),dp(1),dp(3),dp(1));root.setBackgroundColor(0xff112338);
+        render();return root;
+    }
+    @Override public void onStartInputView(EditorInfo info,boolean restarting){
+        super.onStartInputView(info,restarting);
+        shifted=true;symbols=false;active=true;if(root!=null)render();
+    }
+    private void startLights(){handler.removeCallbacks(animate);if(active&&preferences.getBoolean("keyboardRgb",true))handler.post(animate);}
+    private void render(){
+        root.removeAllViews();letters.clear();
+        lights=new LinearLayout(this);lights.setGravity(Gravity.CENTER);
+        for(int i=0;i<14;i++){
+            TextView bulb=new TextView(this);bulb.setText("●");bulb.setTextColor(palette(preferences.getInt("keyboardTheme",0))[i%palette(preferences.getInt("keyboardTheme",0)).length]);
+            bulb.setTextSize(9);bulb.setGravity(Gravity.CENTER);
+            lights.addView(bulb,new LinearLayout.LayoutParams(0,dp(10),1));
+        }
+        root.addView(lights);
+        startLights();
+        TextView label=new TextView(this);
+        label.setText("❄ SnowGlobe  •  Christmas Keys");label.setTextColor(0xffd8f5ff);
+        label.setTextSize(11);label.setGravity(Gravity.CENTER);label.setPadding(0,0,0,0);
+        root.addView(label,new LinearLayout.LayoutParams(-1,dp(36)));
+        LinearLayout numberRow=new LinearLayout(this);numberRow.setGravity(Gravity.CENTER);
+        for(int i=0;i<10;i++){
+            String number=String.valueOf((i+1)%10);
+            addKey(numberRow,number,1f,()->type(number),false,35);
+        }
+        root.addView(numberRow);
+        if(symbols){
+            row("1234567890",0);row("@#$%&-+()/",1);row("*\"':;!?.,",2);
+        }else{
+            row("qwertyuiop",0);row("asdfghjkl",1);row("zxcvbnm",2);
+        }
+        LinearLayout bottom=new LinearLayout(this);bottom.setGravity(Gravity.CENTER);
+        addKey(bottom,symbols?"ABC":"?123",1.05f,()->{symbols=!symbols;shifted=false;render();},true);
+        addKey(bottom,",",.65f,()->type(","),false);
+        addKey(bottom,"☻",.65f,()->type("☺"),true);
+        addKey(bottom,"space",4.1f,()->type(" "),false);
+        addKey(bottom,".",.65f,()->type("."),false);
+        addKey(bottom,"↵",1.05f,this::enter,true);
+        root.addView(bottom);
+    }
+    private void row(String chars,int index){
+        LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER);
+        // Gboard-like rows: 10 full keys, 9 centered keys, and a seven-letter row
+        // with shift/backspace occupying the outer slots.
+        if(index==1)line.setPadding(dp(15),0,dp(15),0);
+        if(index==2)addKey(line,"⇧",1.2f,()->{shifted=!shifted;updateCase();},true);
+        for(int i=0;i<chars.length();i++){
+            final String character=String.valueOf(chars.charAt(i));
+            String shown=shifted?character.toUpperCase(java.util.Locale.ROOT):character;
+            Button key=addKey(line,shown,1f,()->{
+                type(shifted?character.toUpperCase(java.util.Locale.ROOT):character);
+                if(shifted&&!symbols){shifted=false;updateCase();}
+            },false);
+            key.setTag(character);
+            letters.add(key);
+        }
+        if(index==2)addKey(line,"⌫",1.2f,()->{InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.deleteSurroundingText(1,0);},true);
+        root.addView(line);
+    }
+    private void updateCase(){
+        for(TextView key:letters){
+            Object tag=key.getTag();
+            if(tag instanceof String){
+                String character=(String)tag;
+                key.setText(shifted?character.toUpperCase(java.util.Locale.ROOT):character);
+            }
+        }
+    }
+    private Button addKey(LinearLayout line,String text,float weight,Runnable action,boolean special){
+        return addKey(line,text,weight,action,special,54);
+    }
+    private Button addKey(LinearLayout line,String text,float weight,Runnable action,boolean special,int keyHeight){
+        Button b=new Button(this);b.setAllCaps(false);b.setText(text);b.setTextSize(text.length()>2?12:19);
+        b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);
+        b.setStateListAnimator(null);b.setElevation(0);
+        b.setTypeface(Typeface.DEFAULT,special?Typeface.BOLD:Typeface.NORMAL);
+        b.setTextColor(special?0xfff3e8bf:Color.WHITE);
+        int theme=preferences.getInt("keyboardTheme",0);
+        int base=theme==1?0xff19354f:theme==2?0xff473327:0xff203b53;
+        int edge=theme==1?0xff76b9d9:theme==2?0xffe5b876:0xff476981;
+        b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x667fffd2),background(special?0xff31536b:base,edge,12),null));
+        b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(0);b.setMinimumHeight(0);
+        b.setPadding(0,0,0,0);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(keyHeight),weight);
+        p.setMargins(dp(2),dp(3),dp(2),dp(3));line.addView(b,p);
+        b.setOnTouchListener((v,event)->{
+            switch(event.getActionMasked()){
+                case MotionEvent.ACTION_DOWN:
+                    touchStartX=event.getX();touchStartY=event.getY();touchCancelled=false;
+                    v.setPressed(true);return true;
+                case MotionEvent.ACTION_MOVE:
+                    int slop=ViewConfiguration.get(v.getContext()).getScaledTouchSlop();
+                    if(Math.abs(event.getX()-touchStartX)>slop*2||Math.abs(event.getY()-touchStartY)>slop*2){
+                        touchCancelled=true;v.setPressed(false);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    v.setPressed(false);
+                    if(!touchCancelled&&event.getX()>=0&&event.getY()>=0&&event.getX()<v.getWidth()&&event.getY()<v.getHeight()){
+                        if(preferences.getBoolean("keyboardHaptics",true))v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        action.run();
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    v.setPressed(false);touchCancelled=true;return true;
+                default:return true;
+            }
+        });
+        return b;
+    }
+    private void type(String value){
+        InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.commitText(value,1);
+    }
+    private void enter(){
+        InputConnection ic=getCurrentInputConnection();if(ic==null)return;
+        EditorInfo info=getCurrentInputEditorInfo();
+        int action=info==null?EditorInfo.IME_ACTION_NONE:(info.imeOptions&EditorInfo.IME_MASK_ACTION);
+        if(action!=EditorInfo.IME_ACTION_NONE&&action!=EditorInfo.IME_ACTION_UNSPECIFIED){
+            if(ic.performEditorAction(action))return;
+        }
+        ic.commitText("\n",1);
+    }
+}
