@@ -14,7 +14,7 @@ public final class SceneSettings {
         reduced=p.getBoolean("reduceMotion",false);gentle=p.getBoolean("gentleMotion",true);
         wallpaperSnow=p.getBoolean("wallpaperSnow",true);wakeSnow=p.getBoolean("wakeSnow",true);
         fallingBlink=p.getBoolean("fallingLightBlink",true);
-        edgeOnly=p.getBoolean("edgeOnly",true);snowShade=integer(p,"snowShade",0,0,2);
+        edgeOnly=p.getBoolean("edgeOnly",false);snowShade=integer(p,"snowShade",0,0,2);
         snowVisibility=value(p,"snowVisibility",100);
         palette=integer(p,"palette",0,0,3);design=integer(p,"lightDesign",0,0,2);
         bulbShape=integer(p,"bulbShape",0,0,2);motion=twinkle?integer(p,"lightMotion",1,0,5):0;
