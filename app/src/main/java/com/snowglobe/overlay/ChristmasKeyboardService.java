@@ -48,15 +48,18 @@ public final class ChristmasKeyboardService extends InputMethodService {
             if(Build.VERSION.SDK_INT>=29)window.setNavigationBarContrastEnforced(false);
             window.setBackgroundDrawable(new ColorDrawable(Color.rgb(16,37,58)));
         }
+        EffectsService.setKeyboardTyping(true);
         if(keyboard!=null)keyboard.start();
         if(engine!=null)engine.begin(info);
     }
     @Override public void onFinishInputView(boolean finishingInput){
+        EffectsService.setKeyboardTyping(false);
         if(engine!=null)engine.finish();
         if(keyboard!=null)keyboard.stop();
         super.onFinishInputView(finishingInput);
     }
     @Override public void onDestroy(){
+        EffectsService.setKeyboardTyping(false);
         if(keyboard!=null)keyboard.stop();
         super.onDestroy();
     }
