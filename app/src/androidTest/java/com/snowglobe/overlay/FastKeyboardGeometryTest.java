@@ -47,5 +47,7 @@ public final class FastKeyboardGeometryTest {
         assertTrue("Enter must clear navigation gesture bar",enter.bottom<view.getHeight()-view.safeBottomForTest());
         assertTrue("Centered home row must be inset from top QWERTY",a.left>q.left);
         assertTrue("Space must be wide enough for touch typing",space.width()>q.width()*3f);
+        assertTrue("Keyboard must leave Gboard-like gesture clearance",view.safeBottomForTest()>=view.getResources().getDisplayMetrics().density*45);
+        assertTrue("Footer row must visibly clear gesture area",view.getHeight()-enter.bottom>view.getResources().getDisplayMetrics().density*45);
     }
 }
