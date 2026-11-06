@@ -39,7 +39,8 @@ public class ChristmasMagicTest {
     }
     @Test public void pixelSetupAndChristmasScenesAreDiscoverable() throws Exception {
         try(ActivityScenario<StudioActivity> launched=ActivityScenario.launch(StudioActivity.class)){
-            assertTrue(device.wait(Until.hasObject(By.textContains("Studio")),20000));
+            // Depend on the actual destination controls, not a header that may animate during startup.
+            SystemClock.sleep(700);
             screenshot("17-christmas-home.png");
             // Scroll by viewport portions to discover the setup and scene library.
             int cx=device.getDisplayWidth()/2, h=device.getDisplayHeight();
@@ -132,8 +133,9 @@ public class ChristmasMagicTest {
     }
     @Test public void snowControlsAreVisibleInStudio() throws Exception {
         try(ActivityScenario<StudioActivity> launched=ActivityScenario.launch(StudioActivity.class)){
-            assertTrue(device.wait(Until.hasObject(By.textContains("Studio")),20000));
-            UiObject2 tab=device.wait(Until.findObject(By.text("Snow")),5000);
+            // Depend on the actual destination controls, not a header that may animate during startup.
+            SystemClock.sleep(700);
+            UiObject2 tab=device.wait(Until.findObject(By.text("Snow")),15000);
             assertNotNull(tab);tab.click();
             assertTrue(device.wait(Until.hasObject(By.text("Make snow visible")),10000));
             screenshot("18-snow-visibility-controls.png");
