@@ -27,6 +27,13 @@ public class EffectsService extends Service {
     private SnowView view;
     private int attachedHeight=0;
     private boolean foregroundStarted, failed;
+    private static boolean keyboardTyping=false;
+    /** Cap visual work while a native keyboard is visible; never intercept key touches. */
+    public static void setKeyboardTyping(boolean active){
+        keyboardTyping=active;
+        Runnable update=()->{if(current!=null&&current.view!=null)current.view.setKeyboardTyping(active);};
+        if(Looper.myLooper()==Looper.getMainLooper())update.run();else MAIN.post(update);
+    }
     // A screen-on broadcast may arrive before the keyguard has finished dismissing.
     // Retry for a short, bounded interval; never run a permanent timer.
     private int unlockChecks;
@@ -77,7 +84,9 @@ public class EffectsService extends Service {
     }
     @Override public void onCreate(){
         super.onCreate(); current=this; prefs=getSharedPreferences("snowglobe",MODE_PRIVATE);
-        manager=getSystemService(WindowManager.class); prefs.registerOnSharedPreferenceChangeListener(settingsChanged);
+        manager=getSystemService(WindowManager.class);
+        OverlayCoverageMigration.apply(prefs);
+        prefs.registerOnSharedPreferenceChangeListener(settingsChanged);
         state("starting");
         NotificationChannel channel=new NotificationChannel(CHANNEL,"Christmas effects",NotificationManager.IMPORTANCE_LOW);
         channel.setDescription("Pause the overlay before shopping, payment or protected screens");channel.setShowBadge(false);
@@ -144,7 +153,7 @@ public class EffectsService extends Service {
         // Restricting the overlay to the top band is an opt-in convenience, not a
         // bypass for protected payment controls.
         int targetHeight=OverlayWindowPolicy.height(windowHeight(),getResources().getDisplayMetrics().density,
-            prefs.getBoolean("edgeOnly",true));
+            prefs.getBoolean("edgeOnly",false));
         if(view!=null&&attachedHeight!=targetHeight)detachOverlay();
         if(view==null){
             SnowView candidate=null;
@@ -160,6 +169,7 @@ public class EffectsService extends Service {
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN|WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT);
                 params.gravity=Gravity.TOP|Gravity.START;params.alpha=alpha;params.setTitle("SnowGlobe visual effects");
                 manager.addView(candidate,params);view=candidate;attachedHeight=targetHeight;
+                candidate.setKeyboardTyping(keyboardTyping);
             }catch(RuntimeException error){
                 if(candidate!=null)try{manager.removeViewImmediate(candidate);}catch(RuntimeException ignored){}
                 fail(error);return;
