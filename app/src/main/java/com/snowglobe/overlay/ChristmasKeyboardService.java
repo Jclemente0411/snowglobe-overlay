@@ -1,6 +1,6 @@
 package com.snowglobe.overlay;
 
-import android.app.ActivityNotFoundException;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.res.ColorStateList;
