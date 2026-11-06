@@ -22,10 +22,12 @@ public final class KeyboardSmokeTest {
         device=UiDevice.getInstance(InstrumentationRegistry.getInstrumentation());
         device.wakeUp();device.executeShellCommand("wm dismiss-keyguard");
         previousIme=device.executeShellCommand("settings get secure default_input_method").trim();
+        device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 1");
         SharedPreferences p=context.getSharedPreferences("snowglobe",0);
         p.edit().putBoolean("effectsEnabled",false).putBoolean("keyboardRgb",false).commit();
     }
     @After public void cleanup() throws Exception {
+        device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 0");
         if(previousIme!=null&&!previousIme.isEmpty()&&!"null".equals(previousIme))
             device.executeShellCommand("ime set "+previousIme);
     }
