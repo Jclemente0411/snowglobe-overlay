@@ -62,7 +62,9 @@ public class WallpaperSmokeTest {
             try(FileWriter out=new FileWriter(new File(images,"wallpaper-status.txt"),true)){
                 out.write("Wake="+wake+"\nRendered after wake="+prefs.getLong("_wallpaperFrameAt",0)+"\nKeyguard showing="+keyguard.isKeyguardLocked()+"\n");
             }
-            // Emulators without a configured PIN may automatically dismiss keyguard.\n            // Wallpaper redraw after wake is asserted above; physical locked-screen validation remains mandatory.\n            if(!keyguard.isKeyguardLocked())android.util.Log.w("SnowGlobeWallpaper","Emulator lacks a retained lock screen; physical Pixel lock-screen QA required");
+            // Emulators without a configured PIN may automatically dismiss keyguard.
+            // Wallpaper redraw after wake is asserted above; physical locked-screen validation remains mandatory.
+            if(!keyguard.isKeyguardLocked())android.util.Log.w("SnowGlobeWallpaper","Emulator lacks a retained lock screen; physical Pixel lock-screen QA required");
             SystemClock.sleep(800);assertTrue(device.takeScreenshot(new File(images,"08-lock-screen-awake.png")));
             device.executeShellCommand("wm dismiss-keyguard");
         }
