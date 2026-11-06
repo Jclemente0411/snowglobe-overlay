@@ -129,12 +129,13 @@ public final class KeyboardDictionary {
         "doesn't didn't wouldn't shouldn't couldn't let's there's they're who's we're " +
         "hello goodbye bye later see yah yeah alright okay ok yes no yep nope maybe sure please";
     private static final Map<String,Integer> ranks=new HashMap<>();
+    private static final ArrayList<String> ordered=new ArrayList<>();
     private static final Map<String,String> knownTypos=new HashMap<>();
     static{
         int rank=1;
         for(String word:FREQUENT.split(" ")){
             String w=word.toLowerCase(Locale.ROOT).trim();
-            if(w.length()>0&&!ranks.containsKey(w))ranks.put(w,rank++);
+            if(w.length()>0&&!ranks.containsKey(w)){ranks.put(w,rank++);ordered.add(w);}
         }
         String typos="teh=the adn=and taht=that thier=their recieve=receive recive=receive "+
             "definately=definitely becuase=because becasue=because seperate=separate "+
@@ -214,19 +215,20 @@ public final class KeyboardDictionary {
     public static List<String> suggest(String word){
         if(word==null||word.isEmpty()||word.length()>22)return Collections.emptyList();
         String lower=word.toLowerCase(Locale.ROOT);
-        LinkedHashSet<String> found=new LinkedHashSet<>();
+        LinkedHashSet<String> found=new LinkedHashSet<>(3);
         found.add(word);
-        String corrected=correct(word);
-        if(!corrected.equals(word))found.add(corrected);
-        // Limit work to the first matching four suggestions, and keep the user's spelling first.
-        ArrayList<Map.Entry<String,Integer>> prefixes=new ArrayList<>();
-        for(Map.Entry<String,Integer> entry:ranks.entrySet())
-            if(entry.getKey().startsWith(lower)&&!entry.getKey().equals(lower))prefixes.add(entry);
-        prefixes.sort(Comparator.comparingInt(Map.Entry::getValue));
-        for(Map.Entry<String,Integer> entry:prefixes){
-            found.add(matchCase(word,entry.getKey()));if(found.size()>=3)break;
+        // Crucial responsiveness rule: do NOT run fuzzy edit-distance correction for
+        // every keystroke. Only explicit well-known typos are offered live.
+        String direct=knownTypos.get(lower);
+        if(direct!=null)found.add(matchCase(word,direct));
+        // The ranked vocabulary is constructed exactly once on class initialization.
+        // Iterate in frequency order and stop once the three visible slots are filled.
+        for(String candidate:ordered){
+            if(candidate.startsWith(lower)&&!candidate.equals(lower)){
+                found.add(matchCase(word,candidate));
+                if(found.size()>=3)break;
+            }
         }
-        ArrayList<String> result=new ArrayList<>(found);
-        return result.subList(0,Math.min(3,result.size()));
+        return new ArrayList<>(found);
     }
 }
