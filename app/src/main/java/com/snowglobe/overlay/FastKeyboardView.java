@@ -21,6 +21,7 @@ import android.view.ViewConfiguration;
 import android.view.inputmethod.InputConnection;
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.List;
 
 /**
  * Lightweight, single-canvas input surface. The layout and labels are generated
@@ -243,6 +244,18 @@ final class FastKeyboardView extends View {
             int[] location=new int[2];getLocationOnScreen(location);
             bounds.offset(location[0],location[1]);info.setBoundsInScreen(bounds);
             return info;
+        }
+        @Override public List<AccessibilityNodeInfo> findAccessibilityNodeInfosByText(String text,int rootId){
+            ArrayList<AccessibilityNodeInfo> found=new ArrayList<>();
+            if(text==null)return found;
+            String target=text.toLowerCase(Locale.ROOT);
+            for(int i=0;i<keys.size();i++){
+                if(rootId!=HOST_VIEW_ID&&rootId!=i)continue;
+                Key key=keys.get(i);
+                String label=key.kind==LETTER&&shifted?key.legend.toUpperCase(Locale.ROOT):key.legend;
+                if(label.toLowerCase(Locale.ROOT).contains(target))found.add(createAccessibilityNodeInfo(i));
+            }
+            return found;
         }
         @Override public boolean performAction(int id,int action,Bundle args){
             if(id>=0&&id<keys.size()&&action==AccessibilityNodeInfo.ACTION_CLICK){
