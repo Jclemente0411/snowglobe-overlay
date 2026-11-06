@@ -29,3 +29,6 @@
 - https://developer.android.com/reference/android/inputmethodservice/InputMethodService
 - https://developer.android.com/guide/components/activities/secure-bal
 - https://developer.android.com/about/versions/17/behavior-changes-all
+
+### Android 17 CI availability
+GitHub hosted SDK manager did not expose platforms;android-37 at QA time, so Android 17 emulation is deferred; **do not claim Android 17 compatibility verified**. A real Pixel 11 Pro XL on Android 17 requires manual validation before rollout.
