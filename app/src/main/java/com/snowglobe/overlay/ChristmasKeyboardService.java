@@ -17,6 +17,8 @@ import android.view.inputmethod.InputConnection;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.view.MotionEvent;
+import android.view.KeyEvent;
 
 /**
  * Explicitly user-selected keyboard. Never draws a SYSTEM_ALERT_WINDOW,
@@ -33,6 +35,8 @@ public final class ChristmasKeyboardService extends InputMethodService {
     private boolean shifted = true;
     private boolean symbols = false;
     private LinearLayout root;
+    private final java.util.ArrayList<TextView> letters=new java.util.ArrayList<>();
+
     private final int[] bulbs = {0xffff5555,0xff61df91,0xffffd26a,0xff69b9ff,0xffff83cf};
     private int[] palette(int theme){
         if(theme==1)return new int[]{0xff91e4ff,0xffd9edff,0xff78b7ff};
@@ -49,7 +53,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
     }
     @Override public View onCreateInputView(){
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(4),dp(6),dp(4),dp(8));root.setBackgroundColor(0xff112338);
+        root.setPadding(dp(3),dp(4),dp(3),dp(5));root.setBackgroundColor(0xff112338);
         render();return root;
     }
     @Override public void onStartInputView(EditorInfo info,boolean restarting){
@@ -58,7 +62,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
     }
     private void startLights(){handler.removeCallbacks(animate);if(active&&preferences.getBoolean("keyboardRgb",true))handler.post(animate);}
     private void render(){
-        root.removeAllViews();
+        root.removeAllViews();letters.clear();
         lights=new LinearLayout(this);lights.setGravity(Gravity.CENTER);
         for(int i=0;i<14;i++){
             TextView bulb=new TextView(this);bulb.setText("●");bulb.setTextColor(palette(preferences.getInt("keyboardTheme",0))[i%palette(preferences.getInt("keyboardTheme",0)).length]);
@@ -69,7 +73,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
         startLights();
         TextView label=new TextView(this);
         label.setText("❄ SnowGlobe  •  Christmas Keys");label.setTextColor(0xffd8f5ff);
-        label.setTextSize(12);label.setGravity(Gravity.CENTER);label.setPadding(0,0,0,dp(5));
+        label.setTextSize(12);label.setGravity(Gravity.CENTER);label.setPadding(0,0,0,dp(3));
         root.addView(label);
         if(symbols){
             row("1234567890",0);row("@#$%&-+()/",1);row("*\"':;!?.,",2);
@@ -77,29 +81,44 @@ public final class ChristmasKeyboardService extends InputMethodService {
             row("qwertyuiop",0);row("asdfghjkl",1);row("zxcvbnm",2);
         }
         LinearLayout bottom=new LinearLayout(this);bottom.setGravity(Gravity.CENTER);
-        addKey(bottom,symbols?"ABC":"?123",1.2f,()->{symbols=!symbols;shifted=false;render();},true);
-        addKey(bottom,"⇧",.8f,()->{shifted=!shifted;render();},true);
-        addKey(bottom,",",.7f,()->type(","),false);
-        addKey(bottom,"space",3.6f,()->type(" "),false);
-        addKey(bottom,".",.7f,()->type("."),false);
-        addKey(bottom,"⌫",1f,()->{InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.deleteSurroundingText(1,0);},true);
-        addKey(bottom,"↵",1f,this::enter,true);
+        addKey(bottom,symbols?"ABC":"?123",1.05f,()->{symbols=!symbols;shifted=false;render();},true);
+        addKey(bottom,",",.65f,()->type(","),false);
+        addKey(bottom,"☻",.65f,()->type("☺"),true);
+        addKey(bottom,"space",4.1f,()->type(" "),false);
+        addKey(bottom,".",.65f,()->type("."),false);
+        addKey(bottom,"⌫",.9f,()->{InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.deleteSurroundingText(1,0);},true);
+        addKey(bottom,"↵",1.05f,this::enter,true);
         root.addView(bottom);
     }
     private void row(String chars,int index){
         LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER);
-        if(index==1){line.setPadding(dp(12),0,dp(12),0);}
+        // Gboard-like rows: 10 full keys, 9 centered keys, and a seven-letter row
+        // with shift/backspace occupying the outer slots.
+        if(index==1)line.setPadding(dp(16),0,dp(16),0);
+        if(index==2)addKey(line,"⇧",1.2f,()->{shifted=!shifted;updateCase();},true);
         for(int i=0;i<chars.length();i++){
-            String character=String.valueOf(chars.charAt(i));
+            final String character=String.valueOf(chars.charAt(i));
             String shown=shifted?character.toUpperCase(java.util.Locale.ROOT):character;
-            addKey(line,shown,1f,()->{
-                type(shown);
-                if(shifted&&!symbols){shifted=false;render();}
+            Button key=addKey(line,shown,1f,()->{
+                type(shifted?character.toUpperCase(java.util.Locale.ROOT):character);
+                if(shifted&&!symbols){shifted=false;updateCase();}
             },false);
+            key.setTag(character);
+            letters.add(key);
         }
+        if(index==2)addKey(line,"⌫",1.2f,()->{InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.deleteSurroundingText(1,0);},true);
         root.addView(line);
     }
-    private void addKey(LinearLayout line,String text,float weight,Runnable action,boolean special){
+    private void updateCase(){
+        for(TextView key:letters){
+            Object tag=key.getTag();
+            if(tag instanceof String){
+                String character=(String)tag;
+                key.setText(shifted?character.toUpperCase(java.util.Locale.ROOT):character);
+            }
+        }
+    }
+    private Button addKey(LinearLayout line,String text,float weight,Runnable action,boolean special){
         Button b=new Button(this);b.setAllCaps(false);b.setText(text);b.setTextSize(text.length()>2?12:17);
         b.setTypeface(Typeface.DEFAULT,special?Typeface.BOLD:Typeface.NORMAL);
         b.setTextColor(special?0xfff3e8bf:Color.WHITE);
@@ -109,9 +128,10 @@ public final class ChristmasKeyboardService extends InputMethodService {
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x667fffd2),background(special?0xff31536b:base,edge,12),null));
         b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(0);b.setMinimumHeight(0);
         b.setPadding(0,0,0,0);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(47),weight);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(49),weight);
         p.setMargins(dp(2),dp(3),dp(2),dp(3));line.addView(b,p);
-        b.setOnClickListener(v->{if(preferences.getBoolean("keyboardHaptics",true))v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);action.run();});
+        b.setOnTouchListener((v,event)->{if(event.getActionMasked()==MotionEvent.ACTION_DOWN){if(preferences.getBoolean("keyboardHaptics",true))v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);action.run();return true;}return true;});
+        return b;
     }
     private void type(String value){
         InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.commitText(value,1);
