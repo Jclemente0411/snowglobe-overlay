@@ -179,7 +179,7 @@ public final class KeyboardDictionary {
         String candidate=null;int best=Integer.MAX_VALUE;
         for(Map.Entry<String,Integer> entry:ranks.entrySet()){
             String word=entry.getKey();
-            if(word.indexOf(''')>=0||Math.abs(word.length()-lower.length())>1)continue;
+            if(word.indexOf((char)39)>=0||Math.abs(word.length()-lower.length())>1)continue;
             int distance=distanceOne(lower,word);
             if(distance!=1)continue;
             int score=entry.getValue();
