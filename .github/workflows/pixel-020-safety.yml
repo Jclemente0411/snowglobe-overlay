@@ -1,0 +1,116 @@
+name: Pixel 0.20 Automatic Resume QA
+on:
+  push:
+    branches: [feature/pixel-020-auto-resume]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pixel-020-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Unlock resume and cross-app safety (API ${{ matrix.api }})
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [35, 36]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile, unlock-resume, boot policy and stability tests
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :tap-probe:assembleDebug
+      - name: Enable emulator acceleration
+        run: if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Three lock/unlock cycles, Pause, wallpaper and protected taps
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/run_device_checks.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SnowGlobe-020-QA-api${{ matrix.api }}-${{ github.run_number }}
+          path: |
+            app/build/test-results/
+            app/build/reports/
+            app/build/outputs/androidTest-results/
+            qa-screenshots/
+          retention-days: 14
+  bundle:
+    name: Signed holiday beta - no store deployment
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Restore existing upload key
+        env:
+          KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            test -n "${!key}" || { echo "::error::Missing existing upload secret: $key"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upload-key.jks"
+          test -s "$RUNNER_TEMP/upload-key.jks"
+      - name: Build release, lint and metadata
+        env:
+          PLAY_STORE_FILE: ${{ runner.temp }}/upload-key.jks
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata
+      - name: Verify signed bundle and preserve disabled commerce
+        run: |
+          set -euo pipefail
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          test -s "$AAB"
+          unzip -t "$AAB" > "$RUNNER_TEMP/zip-check.txt"
+          jarsigner -J-Duser.language=en -verify "$AAB" > "$RUNNER_TEMP/signature.txt"
+          grep -q 'jar verified' "$RUNNER_TEMP/signature.txt"
+          curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle="$AAB"
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" --module=base > "$RUNNER_TEMP/manifest.xml"
+          python3 scripts/verify_bundle.py app/build/reports/release-metadata.json "$RUNNER_TEMP/manifest.xml"
+          mkdir -p release
+          VERSION=$(python3 -c "import json; d=json.load(open('app/build/reports/release-metadata.json')); print(d['versionName']+'-build'+str(d['versionCode']))")
+          cp "$AAB" "release/SnowGlobe-$VERSION.aab"
+          cp app/build/reports/release-metadata.json release/
+          cp "$RUNNER_TEMP/manifest.xml" release/AndroidManifest.xml
+          cp "$RUNNER_TEMP/signature.txt" release/signature-check.txt
+          cp RELEASE_0_19.md release/
+          cd release && sha256sum *.aab > SHA256SUMS.txt
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-key.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SnowGlobe-0.20.0-AAB-${{ github.run_number }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 14
