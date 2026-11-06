@@ -10,8 +10,8 @@ android {
         applicationId 'com.snowglobe.overlay'
         minSdk 26
         targetSdk 36
-        versionCode 100026
-        versionName '0.21.4'
+        versionCode 100027
+        versionName '0.21.5'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildFeatures { compose true; buildConfig true }
