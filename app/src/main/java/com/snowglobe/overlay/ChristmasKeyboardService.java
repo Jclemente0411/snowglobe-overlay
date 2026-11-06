@@ -41,6 +41,10 @@ public final class ChristmasKeyboardService extends InputMethodService {
     private SharedPreferences prefs;
     private LinearLayout root,lightStrip,toolbar,rows;
     private TextView[] lightViews;
+    private LinearLayout candidateStrip;
+    private TextView candidatePlaceholder;
+    private TextView[] candidateButtons;
+    private int selectionStart=-1,selectionEnd=-1;
     private EditorInfo editor;
     private KeyboardPolicy.Layout layout=KeyboardPolicy.Layout.LETTERS;
     private boolean visible,shifted,capsLock,symbols,emoji,sensitive,repeatFired;
@@ -66,7 +70,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
             int[] colors=palette();int level=KeyboardPolicy.bound(prefs.getInt("keyboardRgbBrightness",70),0,100);
             for(int i=0;i<lightViews.length;i++){
                 int color=colors[(i+(pulse/2))%colors.length];
-                lightViews[i].setTextColor(Color.argb(35+level*220/100,
+                lightViews[i].setTextColor(Color.argb(level*255/100,
                     Color.red(color),Color.green(color),Color.blue(color)));
             }
             pulse++;
@@ -97,6 +101,8 @@ public final class ChristmasKeyboardService extends InputMethodService {
     @Override public void onStartInputView(EditorInfo attribute,boolean restarting){
         super.onStartInputView(attribute,restarting);
         editor=attribute;layout=KeyboardPolicy.layout(attribute==null?0:attribute.inputType);
+        selectionStart=attribute==null?-1:attribute.initialSelStart;
+        selectionEnd=attribute==null?-1:attribute.initialSelEnd;
         sensitive=attribute!=null&&KeyboardPolicy.sensitive(attribute.inputType);
         shifted=layout==KeyboardPolicy.Layout.LETTERS||layout==KeyboardPolicy.Layout.EMAIL;
         capsLock=false;symbols=false;emoji=false;typedWord.setLength(0);
@@ -172,27 +178,40 @@ public final class ChristmasKeyboardService extends InputMethodService {
             snow.setTextSize(19);snow.setGravity(Gravity.CENTER);
             toolbar.addView(snow,new LinearLayout.LayoutParams(dp(34),-1));
         }
-        LinearLayout suggestions=new LinearLayout(this);suggestions.setGravity(Gravity.CENTER);
-        toolbar.addView(suggestions,new LinearLayout.LayoutParams(0,-1,3));
+        candidateStrip=new LinearLayout(this);candidateStrip.setGravity(Gravity.CENTER);
+        toolbar.addView(candidateStrip,new LinearLayout.LayoutParams(0,-1,3));
+        candidatePlaceholder=new TextView(this);
+        candidatePlaceholder.setTextColor(0xffadc4ca);candidatePlaceholder.setTextSize(12);
+        candidatePlaceholder.setGravity(Gravity.CENTER);
+        candidateStrip.addView(candidatePlaceholder,new LinearLayout.LayoutParams(-1,-1));
+        candidateButtons=new TextView[3];
+        for(int i=0;i<candidateButtons.length;i++){
+            TextView choice=new TextView(this);choice.setTextColor(0xfff8f5ed);
+            choice.setTextSize(14);choice.setGravity(Gravity.CENTER);
+            choice.setBackground(new RippleDrawable(ColorStateList.valueOf(0x5575d7b8),
+                shape(0x00000000,0x00333333,10),null));
+            candidateStrip.addView(choice,new LinearLayout.LayoutParams(0,-1,1));
+            choice.setOnClickListener(v->complete(choice.getText().toString()));
+            candidateButtons[i]=choice;
+        }
+        updateCandidates();
+        if(customImeSwitcherVisible)toolbarButton("🌐",.45f,this::switchKeyboard,"Choose another keyboard");
+    }
+    private void updateCandidates(){
+        if(candidateButtons==null||candidatePlaceholder==null)return;
         List<String> candidates=(!sensitive&&prefs.getBoolean("keyboardSuggestions",true)
             &&KeyboardPolicy.suggestionsAllowed(editor))
             ?KeyboardPolicy.complete(typedWord.toString()):java.util.Collections.emptyList();
-        if(candidates.isEmpty()){
-            TextView text=new TextView(this);text.setText(sensitive?"Private input":"❄  SnowGlobe Keys");
-            text.setTextColor(0xffadc4ca);text.setTextSize(12);
-            text.setGravity(Gravity.CENTER);suggestions.addView(text,new LinearLayout.LayoutParams(-1,-1));
-        }else{
-            for(String candidate:candidates){
-                TextView choice=new TextView(this);choice.setText(candidate);choice.setTextColor(0xfff8f5ed);
-                choice.setTextSize(14);choice.setGravity(Gravity.CENTER);
-                choice.setBackground(new RippleDrawable(ColorStateList.valueOf(0x5575d7b8),
-                    shape(0x00000000,0x00333333,10),null));
-                suggestions.addView(choice,new LinearLayout.LayoutParams(0,-1,1));
-                choice.setContentDescription("Complete word "+candidate);
-                choice.setOnClickListener(v->complete(candidate));
-            }
+        candidatePlaceholder.setText(sensitive?"Private input":"❄  SnowGlobe Keys");
+        candidatePlaceholder.setVisibility(candidates.isEmpty()?View.VISIBLE:View.GONE);
+        for(int i=0;i<candidateButtons.length;i++){
+            TextView view=candidateButtons[i];
+            if(i<candidates.size()){
+                view.setText(candidates.get(i));
+                view.setContentDescription("Complete word "+candidates.get(i));
+                view.setVisibility(View.VISIBLE);
+            }else view.setVisibility(View.GONE);
         }
-        if(customImeSwitcherVisible)toolbarButton("🌐",.45f,this::switchKeyboard,"Choose another keyboard");
     }
     private void toolbarButton(String label,float weight,Runnable action,String description){
         TextView text=new TextView(this);text.setText(label);text.setTextSize(label.length()>2?12:17);
@@ -296,13 +315,13 @@ public final class ChristmasKeyboardService extends InputMethodService {
             switch(event.getActionMasked()){
                 case MotionEvent.ACTION_DOWN:
                     repeatFired=false;handler.removeCallbacks(deleteRepeat);
-                    handler.postDelayed(deleteRepeat,360);return true;
+                    view.setPressed(true);haptic(view);handler.postDelayed(deleteRepeat,360);return true;
                 case MotionEvent.ACTION_UP:
-                    handler.removeCallbacks(deleteRepeat);
+                    handler.removeCallbacks(deleteRepeat);view.setPressed(false);
                     if(!repeatFired)view.performClick();
                     return true;
                 case MotionEvent.ACTION_CANCEL:
-                    handler.removeCallbacks(deleteRepeat);return true;
+                    handler.removeCallbacks(deleteRepeat);view.setPressed(false);return true;
                 default:return true;
             }
         });
@@ -316,7 +335,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
                     float delta=event.getX()-spaceDownX;
                     if(Math.abs(delta)>=dp(24)){
                         sendDownUpKeyEvents(delta>0?KeyEvent.KEYCODE_DPAD_RIGHT:KeyEvent.KEYCODE_DPAD_LEFT);
-                        spaceDownX=event.getX();spaceMoved=true;typedWord.setLength(0);buildToolbar();
+                        spaceDownX=event.getX();spaceMoved=true;typedWord.setLength(0);updateCandidates();
                     }
                     return true;
                 case MotionEvent.ACTION_UP:
@@ -339,19 +358,18 @@ public final class ChristmasKeyboardService extends InputMethodService {
         if(!sensitive&&KeyboardPolicy.suggestionsAllowed(editor)&&text.length()==1&&Character.isLetter(text.charAt(0))){
             if(typedWord.length()<24)typedWord.append(text.toLowerCase(Locale.ROOT));
         }else typedWord.setLength(0);
-        buildToolbar();
+        updateCandidates();
     }
     private void deleteOne(){
         InputConnection ic=getCurrentInputConnection();if(ic==null)return;
         suppressSelectionUntil=SystemClock.uptimeMillis()+180;
-        CharSequence selected=ic.getSelectedText(0);
-        if(selected!=null&&selected.length()>0)ic.commitText("",1);
+        if(selectionStart>=0&&selectionEnd>selectionStart)ic.commitText("",1);
         else if(typedWord.length()>0){
             int codePoints=Character.charCount(typedWord.codePointBefore(typedWord.length()));
             typedWord.delete(typedWord.length()-codePoints,typedWord.length());
             ic.deleteSurroundingTextInCodePoints(1,0);
         }else ic.deleteSurroundingTextInCodePoints(1,0);
-        buildToolbar();
+        updateCandidates();
     }
     private void complete(String candidate){
         if(sensitive||!KeyboardPolicy.suggestionsAllowed(editor)||typedWord.length()==0)return;
@@ -362,13 +380,14 @@ public final class ChristmasKeyboardService extends InputMethodService {
             ic.deleteSurroundingTextInCodePoints(typedWord.length(),0);
             ic.commitText(candidate+" ",1);
         }finally{ic.endBatchEdit();}
-        typedWord.setLength(0);buildToolbar();
+        typedWord.setLength(0);updateCandidates();
     }
     @Override public void onUpdateSelection(int oldStart,int oldEnd,int newStart,int newEnd,
             int candidatesStart,int candidatesEnd){
         super.onUpdateSelection(oldStart,oldEnd,newStart,newEnd,candidatesStart,candidatesEnd);
+        selectionStart=newStart;selectionEnd=newEnd;
         if(SystemClock.uptimeMillis()>suppressSelectionUntil&&(oldStart!=newStart||oldEnd!=newEnd)){
-            typedWord.setLength(0);if(visible)buildToolbar();
+            typedWord.setLength(0);if(visible)updateCandidates();
         }
     }
     private void enter(){
