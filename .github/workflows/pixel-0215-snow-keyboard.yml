@@ -2,7 +2,7 @@ name: SnowGlobe 0.21.5 Full Snow and Fast Keyboard QA and Signed AAB
 on:
   workflow_dispatch:
   push:
-    branches: [feature/pixel-0215-typing-fluidity]
+    branches: [feature/pixel-0215-ime-snow-coverage]
 permissions:
   contents: read
 concurrency:
