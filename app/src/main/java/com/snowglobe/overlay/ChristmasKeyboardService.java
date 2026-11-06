@@ -76,7 +76,13 @@ public final class ChristmasKeyboardService extends InputMethodService {
         TextView label=new TextView(this);
         label.setText("❄ SnowGlobe  •  Christmas Keys");label.setTextColor(0xffd8f5ff);
         label.setTextSize(11);label.setGravity(Gravity.CENTER);label.setPadding(0,0,0,0);
-        root.addView(label,new LinearLayout.LayoutParams(-1,dp(26)));
+        root.addView(label,new LinearLayout.LayoutParams(-1,dp(36)));
+        LinearLayout numberRow=new LinearLayout(this);numberRow.setGravity(Gravity.CENTER);
+        for(int i=0;i<10;i++){
+            String number=String.valueOf((i+1)%10);
+            addKey(numberRow,number,1f,()->type(number),false,35);
+        }
+        root.addView(numberRow);
         if(symbols){
             row("1234567890",0);row("@#$%&-+()/",1);row("*\"':;!?.,",2);
         }else{
@@ -120,6 +126,9 @@ public final class ChristmasKeyboardService extends InputMethodService {
         }
     }
     private Button addKey(LinearLayout line,String text,float weight,Runnable action,boolean special){
+        return addKey(line,text,weight,action,special,54);
+    }
+    private Button addKey(LinearLayout line,String text,float weight,Runnable action,boolean special,int keyHeight){
         Button b=new Button(this);b.setAllCaps(false);b.setText(text);b.setTextSize(text.length()>2?12:19);
         b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);
         b.setStateListAnimator(null);b.setElevation(0);
@@ -131,7 +140,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x667fffd2),background(special?0xff31536b:base,edge,12),null));
         b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(0);b.setMinimumHeight(0);
         b.setPadding(0,0,0,0);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(46),weight);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(keyHeight),weight);
         p.setMargins(dp(2),dp(3),dp(2),dp(3));line.addView(b,p);
         b.setOnTouchListener((v,event)->{
             switch(event.getActionMasked()){
