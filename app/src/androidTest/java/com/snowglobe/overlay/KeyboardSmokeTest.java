@@ -46,6 +46,8 @@ public final class KeyboardSmokeTest {
         assertEquals("Q",field.getText());
         UiObject2 backspace=device.wait(Until.findObject(By.text("⌫")),5000);
         assertNotNull(backspace);backspace.click();
-        assertTrue("Backspace must delete text",device.wait(Until.hasObject(By.text("TYPE HERE")),6000));
+        SystemClock.sleep(300);
+        String after=field.getText();
+        assertTrue("Backspace must delete text",after.isEmpty()||"TYPE HERE".equals(after));
     }
 }
