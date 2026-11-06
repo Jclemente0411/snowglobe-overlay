@@ -144,7 +144,7 @@ public class EffectsService extends Service {
         // Restricting the overlay to the top band is an opt-in convenience, not a
         // bypass for protected payment controls.
         int targetHeight=OverlayWindowPolicy.height(windowHeight(),getResources().getDisplayMetrics().density,
-            prefs.getBoolean("edgeOnly",false));
+            prefs.getBoolean("edgeOnly",true));
         if(view!=null&&attachedHeight!=targetHeight)detachOverlay();
         if(view==null){
             SnowView candidate=null;
