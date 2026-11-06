@@ -2,6 +2,7 @@
 package com.snowglobe.overlay
 
 import android.os.Build
+import android.provider.Settings
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -57,7 +58,7 @@ internal class HolidayActions(
     var theme by remember{mutableStateOf(appearance.theme())}
     var page by rememberSaveable{mutableIntStateOf(0)}
     var sheet by rememberSaveable{mutableStateOf<String?>(null)}
-    val scrollStates=List(4){rememberLazyListState()}
+    val scrollStates=List(5){rememberLazyListState()}
     val reduced=remember(state.revision){prefs.getBoolean("reduceMotion",false)}
     val pixel=theme==HolidayThemeTokens.PIXEL&&Build.VERSION.SDK_INT>=31
     val palette=remember(theme){HolidayThemeTokens.palette(theme)}
@@ -68,7 +69,7 @@ internal class HolidayActions(
     LaunchedEffect(state.error,state.message){(state.error?:state.message)?.let{snackbar.showSnackbar(it)}}
     MaterialExpressiveTheme(colorScheme=colors,motionScheme=MotionScheme.expressive(),
         shapes=Shapes(small=RoundedCornerShape(14.dp),medium=RoundedCornerShape(22.dp),large=RoundedCornerShape(30.dp))){
-        val pages=listOf("Home","Snow","Lights","Decor")
+        val pages=listOf("Home","Snow","Lights","Decor","Keys")
         val enter=MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
         val exit=MaterialTheme.motionScheme.fastEffectsSpec<Float>()
         Scaffold(containerColor=colors.background,contentWindowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
@@ -89,7 +90,7 @@ internal class HolidayActions(
                 }
             },
             bottomBar={NavigationBar(containerColor=colors.surface,windowInsets=WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom+WindowInsetsSides.Horizontal)){
-                val icons=listOf(R.drawable.ic_nav_home,R.drawable.ic_nav_snow,R.drawable.ic_nav_lights,R.drawable.ic_nav_decor)
+                val icons=listOf(R.drawable.ic_nav_home,R.drawable.ic_nav_snow,R.drawable.ic_nav_lights,R.drawable.ic_nav_decor,R.drawable.ic_nav_keys)
                 pages.forEachIndexed{index,title->NavigationBarItem(selected=page==index,onClick={page=index},
                     icon={Icon(painterResource(icons[index]),null,Modifier.size(24.dp))},label={Text(title)},
                     colors=NavigationBarItemDefaults.colors(selectedIconColor=colors.onPrimary,indicatorColor=colors.primary,
@@ -104,18 +105,11 @@ internal class HolidayActions(
                             0->{
                                 item{HolidayHero(prefs,state,actions,previewActive=sheet==null)}
                                 item{PixelSetupSummary(prefs,state,onDetails={sheet="setup"})}
-                                item{HolidayCard("Christmas RGB keyboard","An optional SnowGlobe keyboard with festive lights. Enable it in Android settings, then select it as your keyboard."){
-                                    OutlinedButton(onClick=actions.keyboardSettings,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("1. Enable Christmas keyboard")}
-                                    OutlinedButton(onClick=actions.keyboardPicker,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("2. Choose Christmas keyboard")}
-                                    HolidayChoice(prefs,state,actions,"Keyboard theme","keyboardTheme",
-                                        listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
-                                    HolidayToggle(prefs,state,actions,"Animated RGB lights","keyboardRgb",true,
-                                        "Lights animate only while the keyboard is open.")
-                                    HolidaySlider(prefs,state,actions,"RGB animation speed","keyboardRgbSpeed",45)
-                                    HolidayToggle(prefs,state,actions,"Keypress haptics","keyboardHaptics",true,
-                                        "Gentle tactile feedback when typing.")
-                                    Text("Typing stays on your device. This beta keyboard does not yet include Gboard-style suggestions, swipe typing or multilingual autocorrect. Switch back to Gboard at any time.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
-                                }
+                                item{HolidayCard("SnowGlobe Christmas Keys","Festive RGB typing, Gemini shortcut, and expressive Pixel controls."){
+                                    Text("A real optional keyboard, separate from the snowfall overlay.",style=MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.height(8.dp))
+                                    Button(onClick={page=4},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Explore Keyboard Studio")}
+                                }}
                                 item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
                                     HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
                                     Text("0% hides flakes; 100% makes them brightest. Snow amount and speed are in the Snow tab.",
@@ -193,6 +187,47 @@ internal class HolidayActions(
                                 item{HolidayPreview(prefs,sheet==null,150)}
                                 item{HolidayCard("Holiday details","Little things that make it feel like Christmas."){
                                     listOf("Candy canes" to "candy","Presents" to "gifts","Christmas trees" to "trees","Snowmen" to "snowmen","Glass bulbs" to "bulbs","Golden stars" to "stars","Confetti" to "confetti").forEach{(title,key)->HolidayToggle(prefs,state,actions,title,key,false)}
+                                }}
+                            }
+                            4->{
+                                item{KeyboardLookPreview(prefs,state.revision)}
+                                item{HolidayCard("Use Christmas Keys","Two steps. Android always lets you switch back to your current keyboard."){
+                                    val isSelected=remember(state.revision){runCatching{
+                                        val name=Settings.Secure.getString(context.contentResolver,Settings.Secure.DEFAULT_INPUT_METHOD)
+                                        name!=null&&name.startsWith(context.packageName+"/")&&name.endsWith(".ChristmasKeyboardService")
+                                    }.getOrDefault(false)}
+                                    Text(if(isSelected)"● SnowGlobe keyboard selected"else "○ Enable and select when ready",
+                                        style=MaterialTheme.typography.labelLarge,color=if(isSelected)colors.primary else colors.onSurfaceVariant)
+                                    Button(onClick=actions.keyboardSettings,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("1. Enable SnowGlobe keyboard")}
+                                    OutlinedButton(onClick=actions.keyboardPicker,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("2. Select SnowGlobe keyboard")}
+                                    Text("The keyboard cannot replace Gboard until you choose it in Android settings.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
+                                item{HolidayCard("Test your keyboard","Tap below after selecting SnowGlobe to check real typing."){
+                                    var typed by remember{mutableStateOf("")}
+                                    OutlinedTextField(value=typed,onValueChange={typed=it.take(120)},
+                                        label={Text("Try Christmas Keys")},placeholder={Text("Type a holiday message…")},
+                                        singleLine=true,modifier=Modifier.fillMaxWidth())
+                                    Text("Test text stays only in this screen's memory. You can clear it at any time.",
+                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                    TextButton(onClick={typed=""}){Text("Clear test text")}
+                                }}
+                                item{HolidayCard("Premium keyboard themes","A distinct atmosphere for every holiday moment."){
+                                    HolidayChoice(prefs,state,actions,"Keyboard theme","keyboardTheme",listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
+                                    HolidayToggle(prefs,state,actions,"Animated RGB Christmas lights","keyboardRgb",true,"Animations stop when the keyboard closes, Battery Saver is active or reduced motion is on.")
+                                    HolidayChoice(prefs,state,actions,"RGB light motion","keyboardRgbPattern",listOf("Aurora wave","Festive twinkle","Steady glow"),0)
+                                    HolidaySlider(prefs,state,actions,"RGB speed","keyboardRgbSpeed",45)
+                                    HolidaySlider(prefs,state,actions,"RGB brightness","keyboardRgbBrightness",70)
+                                }}
+                                item{HolidayCard("Typing experience","Helpful details without slowing down the keys."){
+                                    HolidayToggle(prefs,state,actions,"Offline word completions","keyboardSuggestions",true,"Tap a suggested word to complete it. No cloud, autocorrect or typed-text history.")
+                                    HolidayToggle(prefs,state,actions,"Tactile key feedback","keyboardHaptics",true)
+                                    HolidayToggle(prefs,state,actions,"Gemini shortcut","keyboardGeminiShortcut",true,"A top-left shortcut opens Gemini separately. It never sends your typed text.")
+                                    Text("Spacebar swipe moves the cursor. Hold Delete to erase repeatedly. The layout adapts for numbers, email and phone fields.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
+                                item{HolidayCard("Privacy & compatibility","The keyboard handles sensitive information, so security is part of the design."){
+                                    Text("No Internet permission, no keyboard analytics or stored keystrokes. Word completions and the Gemini shortcut are hidden for password fields and no-personalized-learning editors.",style=MaterialTheme.typography.bodySmall)
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("This beta does not yet match Gboard's multilingual typing, speech dictation, swipe-word recognition or full autocorrect. Test with your normal apps before making it your everyday keyboard.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                             }
                         }
@@ -409,5 +444,50 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
             Text(options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))}
             DropdownMenu(expanded=open,onDismissRequest={open=false}){options.forEachIndexed{i,label->DropdownMenuItem(text={Text(label)},onClick={actions.setNumber(key,i);open=false})}}
         }
+    }
+}
+
+/** Static, lightweight Studio representation; never creates an active IME or collects input. */
+@Composable private fun KeyboardLookPreview(prefs:SharedPreferences,revision:Int){
+    val theme=remember(revision){prefs.getInt("keyboardTheme",0).coerceIn(0,2)}
+    val brightness=remember(revision){prefs.getInt("keyboardRgbBrightness",70).coerceIn(0,100)}
+    val background=when(theme){1->Color(0xff0b2338);2->Color(0xff291d23);else->Color(0xff0d2030)}
+    val surface=when(theme){1->Color(0xff213f59);2->Color(0xff4b3337);else->Color(0xff213b4d)}
+    val accents=when(theme){
+        1->listOf(Color(0xff8fe3ff),Color(0xffd8f2ff),Color(0xff7ebaff))
+        2->listOf(Color(0xffffd781),Color(0xffffaa6f),Color(0xfffff2b9))
+        else->listOf(Color(0xffff5e68),Color(0xff5fe09b),Color(0xffffd16b),Color(0xff6cbcff))
+    }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(background).padding(14.dp),
+        verticalArrangement=Arrangement.spacedBy(8.dp)){
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(5.dp)){
+            repeat(14){index->
+                Box(Modifier.weight(1f).height(9.dp).clip(CircleShape)
+                    .background(accents[index%accents.size].copy(alpha=brightness/100f)))
+            }
+        }
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+            Text("✦ Gemini",color=accents[0],style=MaterialTheme.typography.labelLarge)
+            Spacer(Modifier.weight(1f))
+            Text("❄ SnowGlobe Keys",color=Color(0xffb6cbd4),style=MaterialTheme.typography.labelMedium)
+            Spacer(Modifier.weight(1f))
+            Text("🌐",color=Color.White)
+        }
+        for(keys in listOf("QWERTYUIOP","ASDFGHJKL","ZXCVBNM")){
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(3.dp)){
+                for(key in keys){
+                    Box(Modifier.weight(1f).height(37.dp).clip(RoundedCornerShape(8.dp)).background(surface),
+                        contentAlignment=Alignment.Center){
+                        Text(key.toString(),color=Color.White,style=MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){
+            Box(Modifier.weight(1f).height(37.dp).clip(RoundedCornerShape(9.dp)).background(surface),contentAlignment=Alignment.Center){Text("?123",color=Color.White,style=MaterialTheme.typography.labelSmall)}
+            Box(Modifier.weight(4f).height(37.dp).clip(RoundedCornerShape(9.dp)).background(surface),contentAlignment=Alignment.Center){Text("space",color=Color.White,style=MaterialTheme.typography.labelMedium)}
+            Box(Modifier.weight(1f).height(37.dp).clip(RoundedCornerShape(9.dp)).background(surface),contentAlignment=Alignment.Center){Text("↵",color=accents[0],style=MaterialTheme.typography.labelLarge)}
+        }
+        Text("Theme preview • Open a text field to use the real keyboard",color=Color(0xffb6cbd4),style=MaterialTheme.typography.labelSmall)
     }
 }

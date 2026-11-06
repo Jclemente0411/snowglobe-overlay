@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
     <uses-feature android:name="android.software.live_wallpaper" android:required="false"/>
-    <queries><intent><action android:name="android.service.wallpaper.WallpaperService"/></intent></queries>
+    <queries><intent><action android:name="android.service.wallpaper.WallpaperService"/></intent><package android:name="com.google.android.apps.bard"/></queries>
     <application android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher"
         android:label="SnowGlobe" android:theme="@android:style/Theme.Material.Light.NoActionBar"
         android:hardwareAccelerated="true" android:usesCleartextTraffic="false">

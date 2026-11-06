@@ -36,3 +36,15 @@ if meta['versionCode']>=19:
     actions={x.attrib.get(a+'name') for flt in receiver.findall('intent-filter') for x in flt.findall('action')}
     assert 'android.intent.action.BOOT_COMPLETED' in actions,'Boot receiver action missing'
     assert 'android.intent.action.MY_PACKAGE_REPLACED' in actions,'Update receiver action missing'
+
+if meta['versionCode']>=21:
+    keyboards=[svc for svc in services if svc.attrib.get(a+'name','').endswith('.ChristmasKeyboardService')]
+    assert len(keyboards)==1,'SnowGlobe keyboard IME is missing or duplicated'
+    keyboard=keyboards[0]
+    assert keyboard.attrib.get(a+'exported')=='true','Keyboard must be selectable by Android'
+    assert keyboard.attrib.get(a+'permission')=='android.permission.BIND_INPUT_METHOD','Keyboard service permission invalid'
+    filters={x.attrib.get(a+'name') for flt in keyboard.findall('intent-filter') for x in flt.findall('action')}
+    assert 'android.view.InputMethod' in filters,'Keyboard input method intent filter missing'
+    metas={x.attrib.get(a+'name') for x in keyboard.findall('meta-data')}
+    assert 'android.view.im' in metas,'Keyboard input method XML metadata missing'
+    assert 'android.permission.INTERNET' not in permissions,'No network permission in keyboard release'
