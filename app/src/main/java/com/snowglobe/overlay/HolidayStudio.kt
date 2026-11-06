@@ -104,15 +104,20 @@ internal class HolidayActions(
                             0->{
                                 item{HolidayHero(prefs,state,actions,previewActive=sheet==null)}
                                 item{PixelSetupSummary(prefs,state,onDetails={sheet="setup"})}
+                                item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
+                                    HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
+                                    Text("0% hides flakes; 100% makes them brightest. Snow amount and speed are in the Snow tab.",
+                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
                                 item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
                                     Column(Modifier.weight(1f)){HolidayHeading("Christmas magic");Text("Five complete looks, one tap.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
                                     TextButton(onClick={sheet="saved"}){Text("My scenes")}
                                 }}
                                 item{HolidayScenes(prefs,state,actions)}
-                                item{HolidayCard("Touch-friendly mode","Less screen coverage when other apps need your taps."){
-                                    HolidayToggle(prefs,state,actions,"Effects near the top only","edgeOnly",false,
+                                item{HolidayCard("Touch-friendly mode","Top-edge effects are the default for better tap compatibility."){
+                                    HolidayToggle(prefs,state,actions,"Effects near the top only","edgeOnly",true,
                                         "Keep the falling effects in the top quarter of the screen.")
-                                    Text("This reduces the area covered by SnowGlobe, but it cannot guarantee checkout taps. Use Pause for payment or login screens.",
+                                    Text("Full-screen effects can block taps in other apps, including checkout. Keep top-only on for safer use; Pause before payment or login screens.",
                                         style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                                 if(state.canUndo)item{TextButton(onClick=actions.undo){Text("Undo last scene")}}
@@ -203,7 +208,7 @@ internal class HolidayActions(
                         else->{
                             item{OutlinedButton(onClick={sheet="setup"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pixel setup guide")}}
                             item{HolidayCard("Safe taps & quick control","Pause before shopping or protected screens."){
-                                HolidayToggle(prefs,state,actions,"Top-edge-only effects","edgeOnly",false,
+                                HolidayToggle(prefs,state,actions,"Top-edge-only effects","edgeOnly",true,
                                     "A smaller overlay leaves most of the screen uncovered. Checkout may still require Pause.")
                                 OutlinedButton(onClick=actions.pauseAndOpenPlay,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pause & open Google Play")}
                                 OutlinedButton(onClick=actions.addTile,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Add Quick Settings control")}
