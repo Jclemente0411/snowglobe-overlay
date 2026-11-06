@@ -11,7 +11,7 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     private final SharedPreferences preferences;
     private final SceneRenderer renderer;
     private final RenderPowerMonitor power;
-    private boolean posted=false,enabled=true,preview=false,reloadQueued=false;
+    private boolean posted=false,enabled=true,preview=false,reloadQueued=false,keyboardTyping=false;
     private long presented=0L;
     private final Runnable reloadTask=()->{reloadQueued=false;reload();};
     private final SharedPreferences.OnSharedPreferenceChangeListener changes=(p,key)->{
@@ -26,6 +26,13 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     private boolean powerInteractive(){return power!=null&&power.interactive;}
     public void setPreviewMode(boolean value){preview=value;setClickable(value);resizeScene();invalidate();}
     public void setAnimating(boolean value){enabled=value;if(renderer!=null)updateSchedule();}
+    /** Reduce shared UI-thread/GPU work while the user types, but keep flakes visible. */
+    public void setKeyboardTyping(boolean typing){
+        if(keyboardTyping==typing)return;
+        keyboardTyping=typing;
+        cancel();
+        updateSchedule();
+    }
     public void refresh(){reload();}
     private void reload(){
         renderer.apply(new SceneSettings(preferences));power.read();resizeScene();invalidate();updateSchedule();
@@ -49,7 +56,8 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);if(renderer!=null)updateSchedule();}
     private boolean visible(){return enabled&&powerInteractive()&&isAttachedToWindow()&&isShown()&&getWindowVisibility()==VISIBLE;}
     private int fps(){Display display=getDisplay();float hz=display==null?60f:display.getRefreshRate();
-        return RenderPolicy.fps(renderer.settings().quality,preview,power.powerSaver,power.thermal,hz);}
+        int desired=RenderPolicy.fps(renderer.settings().quality,preview,power.powerSaver,power.thermal,hz);
+        return keyboardTyping?Math.min(desired,20):desired;}
     private void updateSchedule(){
         if(!visible()){cancel();return;}
         if(!posted&&renderer.animated()){
