@@ -3,6 +3,8 @@ package com.snowglobe.overlay;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.SystemClock;
+import android.graphics.Rect;
+import java.io.File;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -43,6 +45,15 @@ public final class KeyboardSmokeTest {
         field.click();
         UiObject2 q=device.wait(Until.findObject(By.text("Q")),10000);
         assertNotNull("SnowGlobe keyboard key Q must be visible",q);
+        File images=new File(context.getExternalFilesDir(null),"screenshots");
+        assertTrue(images.mkdirs()||images.isDirectory());
+        assertTrue("Capture real IME geometry before typing",
+            device.takeScreenshot(new File(images,"21-fast-keyboard-layout.png")));
+        UiObject2 space=device.wait(Until.findObject(By.text("space")),5000);
+        assertNotNull("Spacebar must be accessible",space);
+        Rect spaceBounds=space.getVisibleBounds();
+        assertTrue("Spacebar must not cover system bottom gesture area",
+            spaceBounds.bottom<device.getDisplayHeight()-10);
         q.click();
         assertTrue("Q key must commit to another app",device.wait(Until.hasObject(By.text("Q")),6000));
         assertEquals("Q",field.getText());
