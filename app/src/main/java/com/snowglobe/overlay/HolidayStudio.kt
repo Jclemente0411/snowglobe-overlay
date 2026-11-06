@@ -115,7 +115,7 @@ internal class HolidayActions(
                                     HolidayToggle(prefs,state,actions,"Keypress haptics","keyboardHaptics",true,
                                         "Gentle tactile feedback when typing.")
                                     Text("Typing stays on your device. This beta keyboard does not yet include Gboard-style suggestions, swipe typing or multilingual autocorrect. Switch back to Gboard at any time.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
-                                }
+                                }}
                                 item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
                                     HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
                                     Text("0% hides flakes; 100% makes them brightest. Snow amount and speed are in the Snow tab.",
