@@ -2,6 +2,7 @@ package com.snowglobe.overlay
 
 import android.Manifest
 import android.app.StatusBarManager
+import android.view.inputmethod.InputMethodManager
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Context
@@ -53,7 +54,7 @@ class StudioActivity:ComponentActivity(){
         }
         savedInstanceState?.getString("undoScene")?.let{try{undo=SceneSnapshot.decode(it);undoName=savedInstanceState.getString("undoName","Custom")}catch(_:IllegalArgumentException){}}
         val actions=HolidayActions(::enable,::openPlaySafely,::addQuickTile,::wallpaperPicker,::changeBoolean,::changeNumber,
-            ::applyScene,::restoreUndo,::saveScene,::loadScene,::deleteScene,::systemBars)
+            ::applyScene,::restoreUndo,::saveScene,::loadScene,::deleteScene,::systemBars,::keyboardSettings,::keyboardPicker)
         setContent{HolidayStudio(prefs,scenes,HolidayUiState(revision,permission,lockApplied,lockCheckAvailable,setupError,setupMessage,undo!=null),actions)}
     }
     private fun systemBars(dark:Boolean){
@@ -83,6 +84,12 @@ class StudioActivity:ComponentActivity(){
         if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
             notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         else startWhenAllowed()
+    }
+    private fun keyboardSettings(){
+        startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+    }
+    private fun keyboardPicker(){
+        getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
     }
     private fun openPlaySafely(){
         EffectsService.pauseNow(this);revision++
