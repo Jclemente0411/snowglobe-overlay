@@ -49,7 +49,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
     private KeyboardPolicy.Layout layout=KeyboardPolicy.Layout.LETTERS;
     private boolean visible,shifted,capsLock,symbols,emoji,sensitive,repeatFired;
     private boolean customImeSwitcherVisible=true;
-    private int pulse;
+    private long animationEpoch;
     private long lastShiftTap,suppressSelectionUntil;
     private float spaceDownX;
     private boolean spaceMoved;
@@ -64,19 +64,35 @@ public final class ChristmasKeyboardService extends InputMethodService {
         "❄","⛄","🎄","🎁","🎅","✨","⭐","🎉","❤️","😊","😂","😍",
         "🥰","👍","🙏","🔥","🎊","☃","🧣","🍪","☕","🦌","🌟","💚"
     };
+    /** Smooth capped 30 fps wave/twinkle; never on password fields or Battery Saver. */
     private final Runnable rgbTick=new Runnable(){
         @Override public void run(){
             if(!visible||lightViews==null||!rgbAllowed())return;
-            int[] colors=palette();int level=KeyboardPolicy.bound(prefs.getInt("keyboardRgbBrightness",70),0,100);
+            int[] colors=palette();
+            int level=KeyboardPolicy.bound(prefs.getInt("keyboardRgbBrightness",70),0,100);
+            int speed=KeyboardPolicy.bound(prefs.getInt("keyboardRgbSpeed",45),0,100);
+            int pattern=KeyboardPolicy.bound(prefs.getInt("keyboardRgbPattern",0),0,2);
+            float time=(SystemClock.uptimeMillis()-animationEpoch)/1000f*(.28f+speed*.012f);
             for(int i=0;i<lightViews.length;i++){
-                int color=colors[(i+(pulse/2))%colors.length];
-                lightViews[i].setTextColor(Color.argb(level*255/100,
-                    Color.red(color),Color.green(color),Color.blue(color)));
+                float point=(i*1.3f+time)%colors.length;
+                int index=(int)point;
+                float f=point-index;
+                // A smoothstep avoids hard color transitions at each bulb.
+                f=f*f*(3f-2f*f);
+                int color=mix(colors[index],colors[(index+1)%colors.length],f);
+                float energy=pattern==1?(float)(.70+.30*Math.sin(time*2.5+i*1.8)):1f;
+                int alpha=KeyboardPolicy.bound(Math.round(level*255f/100f*energy),0,255);
+                lightViews[i].setTextColor(Color.argb(alpha,Color.red(color),Color.green(color),Color.blue(color)));
             }
-            pulse++;
-            handler.postDelayed(this,KeyboardPolicy.animationDelayMs(prefs.getInt("keyboardRgbSpeed",45),false));
+            handler.postDelayed(this,33);
         }
     };
+    private static int mix(int left,int right,float t){
+        int r=Math.round(Color.red(left)+(Color.red(right)-Color.red(left))*t);
+        int g=Math.round(Color.green(left)+(Color.green(right)-Color.green(left))*t);
+        int b=Math.round(Color.blue(left)+(Color.blue(right)-Color.blue(left))*t);
+        return Color.rgb(r,g,b);
+    }
     private final Runnable deleteRepeat=new Runnable(){
         @Override public void run(){
             if(!visible)return;
@@ -104,9 +120,9 @@ public final class ChristmasKeyboardService extends InputMethodService {
         selectionStart=attribute==null?-1:attribute.initialSelStart;
         selectionEnd=attribute==null?-1:attribute.initialSelEnd;
         sensitive=attribute!=null&&KeyboardPolicy.sensitive(attribute.inputType);
-        shifted=layout==KeyboardPolicy.Layout.LETTERS||layout==KeyboardPolicy.Layout.EMAIL;
+        shifted=!sensitive&&(layout==KeyboardPolicy.Layout.LETTERS||layout==KeyboardPolicy.Layout.EMAIL);
         capsLock=false;symbols=false;emoji=false;typedWord.setLength(0);
-        visible=true;lastShiftTap=0;
+        visible=true;lastShiftTap=0;animationEpoch=SystemClock.uptimeMillis();
         if(root!=null)build();
         scheduleRgb();
     }
@@ -130,7 +146,8 @@ public final class ChristmasKeyboardService extends InputMethodService {
     private int theme(){return KeyboardPolicy.bound(prefs.getInt("keyboardTheme",0),0,2);}
     private int[] palette(){return PALETTES[theme()];}
     private boolean rgbAllowed(){
-        if(sensitive||!prefs.getBoolean("keyboardRgb",true)||prefs.getBoolean("reduceMotion",false))return false;
+        if(sensitive||!prefs.getBoolean("keyboardRgb",true)||prefs.getBoolean("reduceMotion",false)
+            ||prefs.getInt("keyboardRgbBrightness",70)<=0||prefs.getInt("keyboardRgbPattern",0)==2)return false;
         PowerManager pm=getSystemService(PowerManager.class);
         return pm==null||!pm.isPowerSaveMode();
     }
@@ -158,7 +175,9 @@ public final class ChristmasKeyboardService extends InputMethodService {
         int[] colors=palette();
         for(int i=0;i<lightViews.length;i++){
             TextView t=new TextView(this);t.setGravity(Gravity.CENTER);
-            t.setText("●");t.setTextSize(13);t.setTextColor(colors[i%colors.length]);
+            t.setText("●");t.setTextSize(13);
+            int shade=colors[i%colors.length];int strength=KeyboardPolicy.bound(prefs.getInt("keyboardRgbBrightness",70),0,100);
+            t.setTextColor(Color.argb(strength*255/100,Color.red(shade),Color.green(shade),Color.blue(shade)));
             lightStrip.addView(t,new LinearLayout.LayoutParams(0,dp(19),1));lightViews[i]=t;
         }
         root.addView(lightStrip);
@@ -392,7 +411,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
     }
     private void enter(){
         InputConnection ic=getCurrentInputConnection();if(ic==null)return;
-        typedWord.setLength(0);buildToolbar();
+        typedWord.setLength(0);updateCandidates();
         int action=editor==null?EditorInfo.IME_ACTION_NONE:editor.imeOptions&EditorInfo.IME_MASK_ACTION;
         if(editor!=null&&(editor.imeOptions&EditorInfo.IME_FLAG_NO_ENTER_ACTION)==0&&
            action!=EditorInfo.IME_ACTION_NONE&&action!=EditorInfo.IME_ACTION_UNSPECIFIED){
