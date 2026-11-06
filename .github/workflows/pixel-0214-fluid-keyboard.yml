@@ -6,8 +6,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: snowglobe-0214-fluid-${{ github.sha }}
-  cancel-in-progress: false
+  group: snowglobe-0214-fluid-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   quality:
     name: Unit, renderer and UI verification
