@@ -50,8 +50,7 @@ final class KeyboardTextEngine {
         if(variation==InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS||
             variation==InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS||
             variation==InputType.TYPE_TEXT_VARIATION_URI||
-            variation==InputType.TYPE_TEXT_VARIATION_FILTER||
-            variation==InputType.TYPE_TEXT_VARIATION_WEB_EDIT_TEXT)return false;
+            variation==InputType.TYPE_TEXT_VARIATION_FILTER)return false;
         return (input&InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS)==0;
     }
     void begin(EditorInfo info){
