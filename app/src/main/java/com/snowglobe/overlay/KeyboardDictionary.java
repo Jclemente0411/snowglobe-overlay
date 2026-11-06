@@ -172,11 +172,15 @@ public final class KeyboardDictionary {
     }
     /** Only strong corrections: common explicit typos or a one-edit frequent candidate. */
     public static String correct(String raw){
-        if(raw==null||raw.length()<3||raw.length()>22)return raw;
+        if(raw==null||raw.length()<2||raw.length()>22)return raw;
         String lower=raw.toLowerCase(Locale.ROOT);
-        if(isKnown(lower))return raw;
+        // Explicit high-confidence typos outrank raw corpus words such as "dont".
+        // Do not auto-rewrite ambiguous correct English words such as "its".
         String direct=knownTypos.get(lower);
-        if(direct!=null)return matchCase(raw,direct);
+        if(direct!=null&&!"its".equals(lower)&&!"colours".equals(lower))
+            return matchCase(raw,direct);
+        if(isKnown(lower))return raw;
+        if(raw.length()<3)return raw;
         String candidate=null;int best=Integer.MAX_VALUE;
         for(Map.Entry<String,Integer> entry:ranks.entrySet()){
             String word=entry.getKey();
