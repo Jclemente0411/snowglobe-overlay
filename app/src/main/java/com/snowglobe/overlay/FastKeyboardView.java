@@ -49,6 +49,7 @@ final class FastKeyboardView extends View {
     private final ArrayList<Key> suggestionKeys=new ArrayList<>(3);
     private final SparseArray<float[]> starts=new SparseArray<>();
     private final Handler handler=new Handler(Looper.getMainLooper());
+    private boolean running=false;
     private final Runnable accessibilityRefresh=()->{
         AccessibilityManager manager=(AccessibilityManager)getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
         if(running&&manager!=null&&manager.isEnabled())
@@ -60,7 +61,7 @@ final class FastKeyboardView extends View {
     }
     private final SharedPreferences preferences;
     private final InputActions actions;
-    private boolean shifted=true, symbols=false, running=false;
+    private boolean shifted=true, symbols=false;
     private int pulse=0;
     private long recentTap=0;
     private Key recentKey;
