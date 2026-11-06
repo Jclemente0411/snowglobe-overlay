@@ -214,6 +214,7 @@ internal class HolidayActions(
                                 item{HolidayCard("Premium keyboard themes","A distinct atmosphere for every holiday moment."){
                                     HolidayChoice(prefs,state,actions,"Keyboard theme","keyboardTheme",listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
                                     HolidayToggle(prefs,state,actions,"Animated RGB Christmas lights","keyboardRgb",true,"Animations stop when the keyboard closes, Battery Saver is active or reduced motion is on.")
+                                    HolidayChoice(prefs,state,actions,"RGB light motion","keyboardRgbPattern",listOf("Aurora wave","Festive twinkle","Steady glow"),0)
                                     HolidaySlider(prefs,state,actions,"RGB speed","keyboardRgbSpeed",45)
                                     HolidaySlider(prefs,state,actions,"RGB brightness","keyboardRgbBrightness",70)
                                 }}
