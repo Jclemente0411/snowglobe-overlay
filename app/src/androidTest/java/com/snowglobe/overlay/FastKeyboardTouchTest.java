@@ -24,7 +24,7 @@ public class FastKeyboardTouchTest {
         AtomicLong elapsed=new AtomicLong();
         InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
             android.content.SharedPreferences prefs=context.getSharedPreferences("snowglobe",0);
-            prefs.edit().putBoolean("keyboardRgb",false).putBoolean("keyboardHaptics",false).commit();
+            prefs.edit().putBoolean("keyboardRgb",true).putInt("keyboardRgbPattern",0).putBoolean("keyboardHaptics",false).commit();
             FastKeyboardView v=new FastKeyboardView(context,prefs,new FastKeyboardView.InputActions(){
                 public void commit(String text){if(text.equalsIgnoreCase("q"))calls.incrementAndGet();}
                 public void delete(){}
