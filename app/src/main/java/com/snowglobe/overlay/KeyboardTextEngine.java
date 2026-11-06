@@ -64,8 +64,7 @@ final class KeyboardTextEngine {
         host.candidates(Collections.emptyList());
     }
     void finish(){
-        InputConnection ic=host.current();
-        if(ic!=null&&word.length()>0)ic.finishComposingText();
+        // Individual character commits leave no composing span to finish.
         word.setLength(0);lastOriginal=null;lastCorrection=null;lastDelimiter=null;
         host.candidates(Collections.emptyList());
     }
@@ -80,16 +79,16 @@ final class KeyboardTextEngine {
             return;
         }
         if(letter(value)&&word.length()<28){
-            // A typed letter begins a new undo sequence.
+            // Fast path: commit just one character, no composition span rewrite.
+            // This keeps input latency independent of the length of the active word.
             lastOriginal=null;lastCorrection=null;lastDelimiter=null;
-            word.append(value);
-            // Mark just the active word as composing, never the entire text field.
-            if(!ic.setComposingText(word.toString(),1)){
-                // Some editors do not implement composing; avoid re-inserting entire word.
-                ic.commitText(value,1);
+            if(ic.commitText(value,1)){
+                word.append(value);
+                updateCandidates();
+            }else{
                 word.setLength(0);
+                host.candidates(Collections.emptyList());
             }
-            updateCandidates();
         }else{
             finishWord(value,ic);
         }
@@ -97,11 +96,21 @@ final class KeyboardTextEngine {
     private void finishWord(String suffix,InputConnection ic){
         if(word.length()>0){
             String typed=word.toString();
-            String fixed=autocorrectEnabled?KeyboardDictionary.correct(typed):typed;
-            lastOriginal=!fixed.equals(typed)?typed:null;
-            lastCorrection=!fixed.equals(typed)?fixed:null;
-            lastDelimiter=!fixed.equals(typed)?suffix:null;
-            ic.commitText(fixed+suffix,1);
+            // A moved caret must never cause replacement of unrelated editor text.
+            CharSequence before=ic.getTextBeforeCursor(typed.length(),0);
+            boolean matches=before!=null&&typed.contentEquals(before);
+            String fixed=matches&&autocorrectEnabled?KeyboardDictionary.correct(typed):typed;
+            boolean corrected=matches&&!fixed.equals(typed);
+            lastOriginal=corrected?typed:null;
+            lastCorrection=corrected?fixed:null;
+            lastDelimiter=corrected?suffix:null;
+            if(corrected){
+                ic.beginBatchEdit();
+                try{
+                    ic.deleteSurroundingText(typed.length(),0);
+                    ic.commitText(fixed+suffix,1);
+                }finally{ic.endBatchEdit();}
+            }else ic.commitText(suffix,1);
             word.setLength(0);
         }else{
             lastOriginal=null;lastCorrection=null;lastDelimiter=null;
@@ -113,7 +122,15 @@ final class KeyboardTextEngine {
         if(!suggestionsEnabled||word.length()==0||candidate==null||candidate.isEmpty())return;
         InputConnection ic=host.current();if(ic==null)return;
         String typed=word.toString();
-        ic.commitText(candidate+" ",1);
+        CharSequence before=ic.getTextBeforeCursor(typed.length(),0);
+        if(before==null||!typed.contentEquals(before)){
+            word.setLength(0);host.candidates(Collections.emptyList());return;
+        }
+        ic.beginBatchEdit();
+        try{
+            ic.deleteSurroundingText(typed.length(),0);
+            ic.commitText(candidate+" ",1);
+        }finally{ic.endBatchEdit();}
         lastOriginal=!candidate.equals(typed)?typed:null;
         lastCorrection=!candidate.equals(typed)?candidate:null;
         lastDelimiter=!candidate.equals(typed)?" ":null;
@@ -122,8 +139,8 @@ final class KeyboardTextEngine {
     void backspace(){
         InputConnection ic=host.current();if(ic==null)return;
         if(word.length()>0){
+            ic.deleteSurroundingText(1,0);
             word.deleteCharAt(word.length()-1);
-            ic.setComposingText(word.toString(),1);
             updateCandidates();
             return;
         }
@@ -134,7 +151,7 @@ final class KeyboardTextEngine {
             ic.beginBatchEdit();
             try{
                 ic.deleteSurroundingText(n,0);
-                ic.setComposingText(raw,1);
+                ic.commitText(raw,1);
             }finally{ic.endBatchEdit();}
             word.append(raw);
             updateCandidates();
@@ -155,11 +172,11 @@ final class KeyboardTextEngine {
         lastOriginal=null;lastCorrection=null;lastDelimiter=null;
     }
     void externalCursorChanged(int selectionEnd,int composingEnd){
-        if(word.length()>0&&composingEnd!=-1&&selectionEnd!=composingEnd){
-            // If the user moves the caret, do not replace unrelated editor text.
+        // No composing region: typed letters have already been committed.
+        // Suggestions are discarded if the editor moves or selects text.
+        if(composingEnd!=-1&&selectionEnd!=composingEnd){
             word.setLength(0);host.candidates(Collections.emptyList());
         }
-        lastOriginal=null;lastCorrection=null;lastDelimiter=null;
     }
     String activeWord(){return word.toString();}
     boolean isSensitive(){return sensitive;}
