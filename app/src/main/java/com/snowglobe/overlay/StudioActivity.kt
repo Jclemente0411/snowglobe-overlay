@@ -43,6 +43,9 @@ class StudioActivity:ComponentActivity(){
         if(!prefs.contains("effectsEnabled"))prefs.edit().putBoolean("effectsEnabled",false).apply()
         // Preserve existing quality selections; new installations start with Auto.
         if(!prefs.contains("qualityMode"))prefs.edit().putInt("qualityMode",3).apply()
+        // Default existing and new installs to a physically smaller, safer overlay.
+        // Preserve a user-selected full-screen preference if one was explicitly saved.
+        if(!prefs.contains("edgeOnly"))prefs.edit().putBoolean("edgeOnly",true).apply()
         if(prefs.getInt("_settingsSchema",0)<14){
             val migration=prefs.edit().putInt("_settingsSchema",14).putString("selectedScene","Custom")
             if(!prefs.contains("lightMotion"))migration.putInt("lightMotion",if(prefs.getBoolean("twinkle",true))1 else 0)
