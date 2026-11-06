@@ -54,6 +54,7 @@ final class FastKeyboardView extends View {
     private long recentTap=0;
     private Key recentKey;
     private boolean batterySaver(){PowerManager p=(PowerManager)getContext().getSystemService(Context.POWER_SERVICE);return p!=null&&p.isPowerSaveMode();}
+    private boolean lightingEffectsEnabled(){return preferences.getBoolean("keyboardRgb",true)&&preferences.getInt("keyboardRgbBrightness",75)>0;}
     private boolean animateRgb(){return running&&preferences.getBoolean("keyboardRgb",true)&&!preferences.getBoolean("reduceMotion",false)&&!batterySaver()&&preferences.getInt("keyboardRgbBrightness",75)>0&&preferences.getInt("keyboardRgbPattern",0)!=2;}
 
     private final Runnable rgbTick=new Runnable(){
@@ -62,7 +63,7 @@ final class FastKeyboardView extends View {
             pulse++;
             postInvalidateOnAnimation();
             int speed=Math.max(0,Math.min(100,preferences.getInt("keyboardRgbSpeed",45)));
-            handler.postDelayed(this,Math.max(55,135-speed/2));
+            handler.postDelayed(this,Math.max(55,110-speed/2));
         }
     };
     private final Runnable deleteRepeat=new Runnable(){
@@ -243,6 +244,7 @@ final class FastKeyboardView extends View {
         final int strength=Math.max(0,Math.min(100,preferences.getInt("keyboardRgbBrightness",75)));
         final int pattern=preferences.getInt("keyboardRgbPattern",0);
         final boolean lighting=preferences.getBoolean("keyboardRgb",true)&&strength>0;
+        final boolean motionAllowed=animateRgb();
         final long now=SystemClock.uptimeMillis();
         int index=0;
         for(Key key:keys){
@@ -255,7 +257,7 @@ final class FastKeyboardView extends View {
             if(lighting){
                 int alpha=pattern==1?((index*7+pulse)%13==0?strength*2:strength/4):strength;
                 if(pattern==2)alpha=Math.min(strength,52);
-                if(!animateRgb()&&pattern!=2)alpha=Math.min(alpha,55);
+                if(!motionAllowed&&pattern!=2)alpha=Math.min(alpha,55);
                 paint.setColor(Color.argb(Math.min(205,Math.max(0,alpha*2)),Color.red(accent),Color.green(accent),Color.blue(accent)));
             }else paint.setColor(borderColor);
             paint.setStyle(Paint.Style.STROKE);
@@ -417,7 +419,7 @@ final class FastKeyboardView extends View {
         if(preferences.getBoolean("keyboardHaptics",true))
             performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         recentKey=key;recentTap=SystemClock.uptimeMillis();
-        if(animateRgb())postInvalidateDelayed(235);
+        if(lightingEffectsEnabled())postInvalidateDelayed(235);
         switch(key.kind){
             case LETTER:
                 actions.commit(shifted?key.output.toUpperCase(Locale.ROOT):key.output);
