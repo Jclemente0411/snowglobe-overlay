@@ -44,6 +44,7 @@ final class FastKeyboardView extends View {
     private static final int[] ICE={0xff8dd4ff,0xffd9eeff,0xff8caaff};
     private static final int[] GOLD={0xfff6bb66,0xffffe4a7,0xffff996a};
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Rect drawClip=new Rect();
     private final ArrayList<Key> keys=new ArrayList<>(56);
     private final SparseArray<Key> pressed=new SparseArray<>();
     private final ArrayList<Key> suggestionKeys=new ArrayList<>(3);
@@ -115,7 +116,9 @@ final class FastKeyboardView extends View {
     private float numberHeight(){return dp(landscape()?34:48);}
     private float letterHeight(){return dp(landscape()?43:(54+Math.max(0,Math.min(100,preferences.getInt("keyboardHeight",60)))*.23f));}
     private float bottomHeight(){return dp(landscape()?44:69);}
-    private float navGap(){return dp(landscape()?12:26);}
+    // Lift the entire key grid above the gesture bar, like a native Pixel IME.
+    // The keyboard view is bottom-anchored, so additional bottom clearance moves all rows UP.
+    private float navGap(){return dp(landscape()?16:48);}
     private float topStripe(){return dp(landscape()?8:12);}
     private float desiredHeight(){
         return dp(2)+topStripe()+headerHeight()+numberHeight()+3*letterHeight()+bottomHeight()+navGap()+dp(2);
@@ -161,6 +164,12 @@ final class FastKeyboardView extends View {
         }
         invalidateHeader();
         scheduleAccessibilityRefresh();
+    }
+    private void invalidateKey(Key key){
+        if(key==null)return;
+        RectF b=key.bounds;
+        invalidate(Math.max(0,(int)b.left-4),Math.max(0,(int)b.top-4),
+            Math.min(getWidth(),(int)b.right+4),Math.min(getHeight(),(int)b.bottom+4));
     }
     private void invalidateHeader(){
         invalidate(0,0,getWidth(),Math.round(topStripe()+headerHeight()+dp(4)));
@@ -263,8 +272,12 @@ final class FastKeyboardView extends View {
         final boolean lighting=preferences.getBoolean("keyboardRgb",true)&&strength>0;
         final boolean motionAllowed=animateRgb();
         final long now=SystemClock.uptimeMillis();
+        c.getClipBounds(drawClip);
         int index=0;
         for(Key key:keys){
+            // Touch updates paint only the dirty key, not the entire keyboard.
+            if(key.bounds.right<drawClip.left||key.bounds.left>drawClip.right||
+               key.bounds.bottom<drawClip.top||key.bounds.top>drawClip.bottom){index++;continue;}
             boolean down=isPressed(key);
             int accent=colors[(index+(pattern==0?pulse/2:0))%colors.length];
             paint.setStyle(Paint.Style.FILL);
@@ -389,7 +402,7 @@ final class FastKeyboardView extends View {
                         if(hasHeldDelete()){deleteRepeating=true;deleteRepeat.run();}
                     },450);
                 }
-                invalidate();
+                invalidateKey(key);
             }
             return true;
         }
@@ -423,7 +436,10 @@ final class FastKeyboardView extends View {
             if(key!=null&&key.isInside(event.getX(index),event.getY(index))&&!repeated){
                 perform(key);
             }
-            invalidate();
+            if(key!=null){
+                if(key.kind==SHIFT||key.kind==MODE)invalidate();
+                else invalidateKey(key);
+            }
             return true;
         }
         if(action==MotionEvent.ACTION_CANCEL){
@@ -437,7 +453,10 @@ final class FastKeyboardView extends View {
             performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         recentKey=key;recentTap=SystemClock.uptimeMillis();
         // An input press is always painted immediately; decorative aftermath is optional.
-        if(lightingEffectsEnabled()&&!preferences.getBoolean("reduceMotion",false))postInvalidateDelayed(235);
+        if(lightingEffectsEnabled()&&!preferences.getBoolean("reduceMotion",false)&&key!=null){
+            RectF b=key.bounds;
+            postInvalidateDelayed(235,(int)b.left-5,(int)b.top-5,(int)b.right+5,(int)b.bottom+5);
+        }
         switch(key.kind){
             case LETTER:
                 actions.commit(shifted?key.output.toUpperCase(Locale.ROOT):key.output);
