@@ -1,0 +1,76 @@
+name: SnowGlobe 0.22 Signed Internal Test AAB
+on:
+  push:
+    branches: [feature/pixel-022-premium-keyboard]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: snowglobe-022-internal-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  internal_aab:
+    name: Compile, sign and validate internal test AAB
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Unit tests, lint, and compile
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Restore existing Play upload key
+        env:
+          KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for key in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            test -n "${!key}" || { echo "::error::Missing existing upload secret: $key"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upload-key.jks"
+          test -s "$RUNNER_TEMP/upload-key.jks"
+      - name: Build signed AAB and release metadata
+        env:
+          PLAY_STORE_FILE: ${{ runner.temp }}/upload-key.jks
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata
+      - name: Validate bundle and preserve exact application identity
+        run: |
+          set -euo pipefail
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          test -s "$AAB"
+          unzip -t "$AAB" > "$RUNNER_TEMP/archive-check.txt"
+          jarsigner -J-Duser.language=en -verify "$AAB" > "$RUNNER_TEMP/signature-check.txt"
+          grep -q 'jar verified' "$RUNNER_TEMP/signature-check.txt"
+          curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle="$AAB"
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" --module=base > "$RUNNER_TEMP/manifest.xml"
+          python3 scripts/verify_bundle.py app/build/reports/release-metadata.json "$RUNNER_TEMP/manifest.xml"
+          mkdir -p release
+          cp "$AAB" "release/SnowGlobe-0.22.0-build22-internal-test.aab"
+          cp app/build/reports/release-metadata.json release/
+          cp "$RUNNER_TEMP/manifest.xml" release/AndroidManifest.xml
+          cp "$RUNNER_TEMP/signature-check.txt" release/signature-check.txt
+          cp RELEASE_0_22.md release/
+          (cd release && sha256sum SnowGlobe-0.22.0-build22-internal-test.aab > SHA256SUMS.txt)
+      - name: Remove temporary upload key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-key.jks"
+      - name: Upload internal testing candidate (not approved for production)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SnowGlobe-0.22.0-build22-INTERNAL-TEST-AAB
+          path: release/
+          if-no-files-found: error
+          retention-days: 14
