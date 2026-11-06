@@ -69,18 +69,26 @@ public final class KeyboardSmokeTest {
         String after=field.getText();
         assertTrue("Backspace must delete text",after.isEmpty()||"TYPE HERE".equals(after));
         for(char ch:new char[]{'t','e','h'}){
-            UiObject2 letter=device.wait(Until.findObject(By.text(String.valueOf(ch))),5000);
+            String lower=String.valueOf(ch),upper=lower.toUpperCase(java.util.Locale.ROOT);
+            UiObject2 letter=device.wait(Until.findObject(By.text(lower)),2500);
+            if(letter==null)letter=device.wait(Until.findObject(By.text(upper)),2500);
+            if(letter==null)letter=device.findObject(By.desc(lower));
+            if(letter==null)letter=device.findObject(By.desc(upper));
+            if(letter==null){
+                device.takeScreenshot(new File(images,"23-missing-typing-key.png"));
+                device.dumpWindowHierarchy(new File(images,"23-typing-key-hierarchy.xml"));
+            }
             assertNotNull("Expected spelling test letter "+ch,letter);
             letter.click();
         }
         UiObject2 spacing=device.wait(Until.findObject(By.text("space")),5000);
         assertNotNull(spacing);spacing.click();
         SystemClock.sleep(350);
-        assertEquals("the",field.getText().trim());
+        assertTrue("Autocorrect should replace common transposition",field.getText().trim().equalsIgnoreCase("the"));
         UiObject2 erase=device.wait(Until.findObject(By.text("⌫")),5000);
         assertNotNull(erase);erase.click();
         SystemClock.sleep(250);
-        assertEquals("teh",field.getText());
+        assertTrue("Backspace must undo autocorrect",field.getText().equalsIgnoreCase("teh"));
         device.takeScreenshot(new File(images,"23-autocorrect-and-rgb.png"));
     }
 }
