@@ -57,7 +57,7 @@ public final class KeyboardInstrumentedTest {
         SystemClock.sleep(200);
         assertFalse("Gemini must not show over password entry",device.hasObject(By.text("✦ Gemini")));
         assertTrue("Secure field must clearly be marked private",device.hasObject(By.text("Private input")));
-        key("A");
+        key("a");
     }
     @Test public void emailAndNumberFieldsHaveTheirOwnLayouts() {
         field("EMAIL");assertNotNull(device.wait(Until.findObject(By.text("@")),5000));
