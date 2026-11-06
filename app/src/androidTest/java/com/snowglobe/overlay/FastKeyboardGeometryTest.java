@@ -23,6 +23,7 @@ public final class FastKeyboardGeometryTest {
                      public void commit(String value){}
                      public void delete(){}
                      public void enter(){}
+                     public void choose(String suggestion){}
                  });
             int width=Math.round(420*context.getResources().getDisplayMetrics().density);
             view.measure(View.MeasureSpec.makeMeasureSpec(width,View.MeasureSpec.EXACTLY),
