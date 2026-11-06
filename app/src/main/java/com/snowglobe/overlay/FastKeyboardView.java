@@ -73,7 +73,8 @@ final class FastKeyboardView extends View {
         @Override public void run(){
             if(!animateRgb())return;
             pulse++;
-            postInvalidateOnAnimation();
+            // Prioritize input: pause decorative full-surface redraws during rapid typing.
+            if(SystemClock.uptimeMillis()-recentTap>=125)postInvalidateOnAnimation();
             int speed=Math.max(0,Math.min(100,preferences.getInt("keyboardRgbSpeed",45)));
             handler.postDelayed(this,Math.max(55,110-speed/2));
         }
@@ -104,7 +105,8 @@ final class FastKeyboardView extends View {
         setHapticFeedbackEnabled(true);
         setFocusable(true);
         setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
-        setLayerType(View.LAYER_TYPE_HARDWARE,null);
+        // This surface changes on every press and RGB tick. A forced hardware layer
+        // must upload its entire texture repeatedly; let the window renderer manage it.
     }
     private float dp(float size){return size*getResources().getDisplayMetrics().density;}
     private float sp(float size){return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,size,getResources().getDisplayMetrics());}
@@ -132,6 +134,7 @@ final class FastKeyboardView extends View {
     }
     void start(){
         running=true;shifted=true;symbols=false;
+        requestLayout(); // Re-measure after the keyboard-height preference changes.
         buildKeys();pulse=0;recentKey=null;handler.removeCallbacks(rgbTick);
         if(animateRgb())handler.post(rgbTick);
         invalidate();
@@ -433,7 +436,8 @@ final class FastKeyboardView extends View {
         if(preferences.getBoolean("keyboardHaptics",true))
             performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
         recentKey=key;recentTap=SystemClock.uptimeMillis();
-        if(lightingEffectsEnabled())postInvalidateDelayed(235);
+        // An input press is always painted immediately; decorative aftermath is optional.
+        if(lightingEffectsEnabled()&&!preferences.getBoolean("reduceMotion",false))postInvalidateDelayed(235);
         switch(key.kind){
             case LETTER:
                 actions.commit(shifted?key.output.toUpperCase(Locale.ROOT):key.output);
