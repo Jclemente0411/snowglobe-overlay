@@ -18,6 +18,8 @@ import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
+import android.os.PowerManager;
+import android.os.SystemClock;
 import android.view.inputmethod.InputConnection;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -33,6 +35,7 @@ final class FastKeyboardView extends View {
         void commit(String text);
         void delete();
         void enter();
+        void choose(String suggestion);
     }
     private static final int BACKGROUND=0xff10253a;
     private static final int[] XMAS={0xffec6b6b,0xff5bc997,0xffffc46d,0xff76c6f8,0xffd28be0};
@@ -41,18 +44,25 @@ final class FastKeyboardView extends View {
     private final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);
     private final ArrayList<Key> keys=new ArrayList<>(56);
     private final SparseArray<Key> pressed=new SparseArray<>();
+    private final ArrayList<Key> suggestionKeys=new ArrayList<>(3);
     private final SparseArray<float[]> starts=new SparseArray<>();
     private final Handler handler=new Handler(Looper.getMainLooper());
     private final SharedPreferences preferences;
     private final InputActions actions;
     private boolean shifted=true, symbols=false, running=false;
     private int pulse=0;
+    private long recentTap=0;
+    private Key recentKey;
+    private boolean batterySaver(){PowerManager p=(PowerManager)getContext().getSystemService(Context.POWER_SERVICE);return p!=null&&p.isPowerSaveMode();}
+    private boolean animateRgb(){return running&&preferences.getBoolean("keyboardRgb",true)&&!preferences.getBoolean("reduceMotion",false)&&!batterySaver()&&preferences.getInt("keyboardRgbBrightness",75)>0&&preferences.getInt("keyboardRgbPattern",0)!=2;}
 
     private final Runnable rgbTick=new Runnable(){
         @Override public void run(){
-            if(!running||!preferences.getBoolean("keyboardRgb",true))return;
-            pulse++;invalidate(0,0,getWidth(),Math.round(dp(14)));
-            handler.postDelayed(this,Math.max(180,420-preferences.getInt("keyboardRgbSpeed",45)*2L));
+            if(!animateRgb())return;
+            pulse++;
+            postInvalidateOnAnimation();
+            int speed=Math.max(0,Math.min(100,preferences.getInt("keyboardRgbSpeed",45)));
+            handler.postDelayed(this,Math.max(55,135-speed/2));
         }
     };
     private final Runnable deleteRepeat=new Runnable(){
@@ -73,7 +83,7 @@ final class FastKeyboardView extends View {
         Key(String legend,String output,int kind){this.legend=legend;this.output=output;this.kind=kind;}
         boolean isInside(float x,float y){return hitBox.contains(x,y);}
     }
-    static final int LETTER=0,STATIC=1,SHIFT=2,DELETE=3,MODE=4,ENTER=5,SPACE=6;
+    static final int LETTER=0,STATIC=1,SHIFT=2,DELETE=3,MODE=4,ENTER=5,SPACE=6,SUGGEST=7;
     FastKeyboardView(Context c,SharedPreferences prefs,InputActions actions){
         super(c);
         this.preferences=prefs;this.actions=actions;
@@ -88,7 +98,7 @@ final class FastKeyboardView extends View {
     private boolean landscape(){return getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE;}
     private float headerHeight(){return dp(landscape()?27:45);}
     private float numberHeight(){return dp(landscape()?34:48);}
-    private float letterHeight(){return dp(landscape()?43:68);}
+    private float letterHeight(){return dp(landscape()?43:(54+Math.max(0,Math.min(100,preferences.getInt("keyboardHeight",60)))*.23f));}
     private float bottomHeight(){return dp(landscape()?44:69);}
     private float navGap(){return dp(landscape()?12:26);}
     private float topStripe(){return dp(landscape()?8:12);}
@@ -109,12 +119,33 @@ final class FastKeyboardView extends View {
     }
     void start(){
         running=true;shifted=true;symbols=false;
-        buildKeys();pulse=0;handler.removeCallbacks(rgbTick);handler.post(rgbTick);
+        buildKeys();pulse=0;recentKey=null;handler.removeCallbacks(rgbTick);
+        if(animateRgb())handler.post(rgbTick);
         invalidate();
     }
     void stop(){
         running=false;handler.removeCallbacks(rgbTick);handler.removeCallbacks(deleteRepeat);
-        pressed.clear();starts.clear();repeatPointer=-1;deleteRepeating=false;invalidate();
+        pressed.clear();starts.clear();suggestionKeys.clear();repeatPointer=-1;deleteRepeating=false;invalidate();
+    }
+    void setSuggestions(List<String> options){
+        suggestionKeys.clear();
+        if(options==null||options.isEmpty()){invalidateHeader();return;}
+        final int count=Math.min(options.size(),3);
+        if(getWidth()<=0){invalidateHeader();return;}
+        float w=getWidth()-dp(12),x=dp(6),y=dp(2)+topStripe();
+        for(int i=0;i<count;i++){
+            String word=options.get(i);
+            if(word==null||word.isEmpty())continue;
+            Key key=new Key(word,word,SUGGEST);
+            float cell=w/count;
+            key.bounds.set(x+i*cell+dp(2),y+dp(2),x+(i+1)*cell-dp(2),y+headerHeight()-dp(2));
+            key.hitBox.set(x+i*cell,y,x+(i+1)*cell,y+headerHeight());
+            suggestionKeys.add(key);
+        }
+        invalidateHeader();
+    }
+    private void invalidateHeader(){
+        invalidate(0,0,getWidth(),Math.round(topStripe()+headerHeight()+dp(4)));
     }
     private Key add(String legend,String output,int kind,float x,float y,float width,float height){
         Key key=new Key(legend,output,kind);
@@ -136,6 +167,7 @@ final class FastKeyboardView extends View {
     private void buildKeys(){
         if(getWidth()<=0)return;
         keys.clear();
+        suggestionKeys.clear();
         float w=getWidth()-dp(6),x0=dp(3);
         float y=dp(2)+topStripe()+headerHeight();
         row("1234567890","1234567890",STATIC,x0,y,w,numberHeight());
@@ -190,19 +222,56 @@ final class FastKeyboardView extends View {
         paint.setTextAlign(Paint.Align.CENTER);
         float headerTop=dp(2)+topStripe();
         float centerY=headerTop+headerHeight()*.5f-(paint.ascent()+paint.descent())*.5f;
-        c.drawText("❄  SnowGlobe  •  Christmas Keys",w/2,centerY,paint);
+        if(suggestionKeys.isEmpty()){
+            c.drawText("❄ SnowGlobe  •  Christmas Keys",w/2,centerY,paint);
+        }else{
+            for(Key choice:suggestionKeys){
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(0xff1c3b4f);
+                c.drawRoundRect(choice.bounds,dp(9),dp(9),paint);
+                paint.setColor(0xffe0f8ea);paint.setTextSize(sp(14));
+                c.save();c.clipRect(choice.bounds);
+                c.drawText(choice.legend,choice.bounds.centerX(),
+                    choice.bounds.centerY()-(paint.ascent()+paint.descent())*.5f,paint);
+                c.restore();
+            }
+        }
 
         int base=theme==1?0xff224056:theme==2?0xff4b3b30:0xff263f53;
         int raised=theme==1?0xff39627e:theme==2?0xff72533d:0xff3b617b;
         int borderColor=theme==1?0xff6fa4c5:theme==2?0xffb89965:0xff65899f;
+        final int strength=Math.max(0,Math.min(100,preferences.getInt("keyboardRgbBrightness",75)));
+        final int pattern=preferences.getInt("keyboardRgbPattern",0);
+        final boolean lighting=preferences.getBoolean("keyboardRgb",true)&&strength>0;
+        final long now=SystemClock.uptimeMillis();
+        int index=0;
         for(Key key:keys){
             boolean down=isPressed(key);
-            paint.setColor(down?0xff528a95:((key.kind==SHIFT||key.kind==DELETE||key.kind==ENTER||key.kind==MODE)?raised:base));
+            int accent=colors[(index+(pattern==0?pulse/2:0))%colors.length];
             paint.setStyle(Paint.Style.FILL);
+            paint.setColor(down?0xff528a95:((key.kind==SHIFT||key.kind==DELETE||key.kind==ENTER||key.kind==MODE)?raised:base));
             c.drawRoundRect(key.bounds,dp(10),dp(10),paint);
-            paint.setColor(down?0xffb1f5e6:borderColor);
-            paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(border);
+            // Keys Cafe-like color pulse: entirely decorative, bounded paint operations.
+            if(lighting){
+                int alpha=pattern==1?((index*7+pulse)%13==0?strength*2:strength/4):strength;
+                if(pattern==2)alpha=Math.min(strength,52);
+                if(!animateRgb()&&pattern!=2)alpha=Math.min(alpha,55);
+                paint.setColor(Color.argb(Math.min(205,Math.max(0,alpha*2)),Color.red(accent),Color.green(accent),Color.blue(accent)));
+            }else paint.setColor(borderColor);
+            paint.setStyle(Paint.Style.STROKE);
+            paint.setStrokeWidth(lighting?dp(1.8f):border);
             c.drawRoundRect(key.bounds,dp(10),dp(10),paint);
+            // A short Christmas sparkle after each key press; no per-frame allocations.
+            if(recentKey==key&&now-recentTap<230&&lighting){
+                float progress=(now-recentTap)/230f;
+                paint.setStyle(Paint.Style.FILL);
+                paint.setColor(Color.argb(Math.round((1-progress)*Math.min(200,strength*2)),
+                    Color.red(accent),Color.green(accent),Color.blue(accent)));
+                float radius=dp(2.0f+progress*4.0f);
+                float cx=key.bounds.centerX(),cy=key.bounds.centerY();
+                c.drawCircle(cx-key.bounds.width()*.32f,cy-key.bounds.height()*.28f,radius,paint);
+                c.drawCircle(cx+key.bounds.width()*.32f,cy+key.bounds.height()*.26f,radius*.65f,paint);
+            }
             paint.setStyle(Paint.Style.FILL);
             String label=key.kind==LETTER&&shifted?key.legend.toUpperCase(Locale.ROOT):key.legend;
             paint.setColor(key.kind>=SHIFT&&key.kind!=SPACE?0xffdfefc0:Color.WHITE);
@@ -211,6 +280,7 @@ final class FastKeyboardView extends View {
             paint.setTextAlign(Paint.Align.CENTER);
             float cy=key.bounds.centerY()-(paint.ascent()+paint.descent())*.5f;
             c.drawText(label,key.bounds.centerX(),cy,paint);
+            index++;
         }
         // Keep the native Android gesture/navigation area clear; draw no fake pill.
     }
@@ -223,10 +293,14 @@ final class FastKeyboardView extends View {
                 host.setPackageName(getContext().getPackageName());
                 host.setVisibleToUser(true);
                 for(int i=0;i<keys.size();i++)host.addChild(FastKeyboardView.this,i);
+                for(int i=0;i<suggestionKeys.size();i++)host.addChild(FastKeyboardView.this,1000+i);
                 return host;
             }
-            if(virtualId<0||virtualId>=keys.size())return null;
-            Key key=keys.get(virtualId);
+            Key key;
+            if(virtualId>=1000&&virtualId<1000+suggestionKeys.size())
+                key=suggestionKeys.get(virtualId-1000);
+            else if(virtualId>=0&&virtualId<keys.size())key=keys.get(virtualId);
+            else return null;
             AccessibilityNodeInfo info=AccessibilityNodeInfo.obtain(FastKeyboardView.this,virtualId);
             info.setPackageName(getContext().getPackageName());
             info.setClassName("android.widget.Button");
@@ -249,17 +323,21 @@ final class FastKeyboardView extends View {
             ArrayList<AccessibilityNodeInfo> found=new ArrayList<>();
             if(text==null)return found;
             String target=text.toLowerCase(Locale.ROOT);
-            for(int i=0;i<keys.size();i++){
-                if(rootId!=HOST_VIEW_ID&&rootId!=i)continue;
-                Key key=keys.get(i);
+            for(int i=0;i<keys.size()+suggestionKeys.size();i++){
+                int virtual=i<keys.size()?i:1000+i-keys.size();
+                if(rootId!=HOST_VIEW_ID&&rootId!=virtual)continue;
+                Key key=virtual>=1000?suggestionKeys.get(virtual-1000):keys.get(i);
                 String label=key.kind==LETTER&&shifted?key.legend.toUpperCase(Locale.ROOT):key.legend;
-                if(label.toLowerCase(Locale.ROOT).contains(target))found.add(createAccessibilityNodeInfo(i));
+                if(label.toLowerCase(Locale.ROOT).contains(target))found.add(createAccessibilityNodeInfo(virtual));
             }
             return found;
         }
         @Override public boolean performAction(int id,int action,Bundle args){
-            if(id>=0&&id<keys.size()&&action==AccessibilityNodeInfo.ACTION_CLICK){
-                perform(keys.get(id));invalidate();return true;
+            if(action==AccessibilityNodeInfo.ACTION_CLICK){
+                if(id>=1000&&id<1000+suggestionKeys.size()){
+                    perform(suggestionKeys.get(id-1000));invalidate();return true;
+                }
+                if(id>=0&&id<keys.size()){perform(keys.get(id));invalidate();return true;}
             }
             return false;
         }
@@ -271,6 +349,7 @@ final class FastKeyboardView extends View {
     }
     private Key hit(float x,float y){
         for(Key key:keys)if(key.isInside(x,y))return key;
+        for(Key key:suggestionKeys)if(key.isInside(x,y))return key;
         return null;
     }
     private boolean hasHeldDelete(){
@@ -296,21 +375,25 @@ final class FastKeyboardView extends View {
             return true;
         }
         if(action==MotionEvent.ACTION_MOVE){
-            int slop=ViewConfiguration.get(getContext()).getScaledTouchSlop();
-            boolean invalidated=false;
+            boolean changed=false;
             for(int i=0;i<event.getPointerCount();i++){
                 int pointer=event.getPointerId(i);
-                Key key=pressed.get(pointer);
-                float[] start=starts.get(pointer);
-                if(key==null||start==null)continue;
-                if(Math.abs(event.getX(i)-start[0])>slop*2||
-                        Math.abs(event.getY(i)-start[1])>slop*2){
-                    pressed.remove(pointer);
+                Key prior=pressed.get(pointer);
+                if(prior==null)continue;
+                Key hovered=hit(event.getX(i),event.getY(i));
+                // Follow minor finger drift to the neighboring key instead of dropping taps.
+                if(hovered!=null&&hovered!=prior){
+                    pressed.put(pointer,hovered);changed=true;
+                    if(pointer==repeatPointer&&hovered.kind!=DELETE){
+                        repeatPointer=-1;handler.removeCallbacks(deleteRepeat);
+                    }
+                }else if(hovered==null&&prior!=null){
+                    // Moving outside the keyboard cancels (prevents accidental swipes).
                     if(pointer==repeatPointer){repeatPointer=-1;handler.removeCallbacks(deleteRepeat);}
-                    invalidated=true;
+                    pressed.remove(pointer);changed=true;
                 }
             }
-            if(invalidated)invalidate();
+            if(changed)invalidate();
             return true;
         }
         if(action==MotionEvent.ACTION_UP||action==MotionEvent.ACTION_POINTER_UP){
@@ -333,6 +416,8 @@ final class FastKeyboardView extends View {
     private void perform(Key key){
         if(preferences.getBoolean("keyboardHaptics",true))
             performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+        recentKey=key;recentTap=SystemClock.uptimeMillis();
+        if(animateRgb())postInvalidateDelayed(235);
         switch(key.kind){
             case LETTER:
                 actions.commit(shifted?key.output.toUpperCase(Locale.ROOT):key.output);
@@ -343,6 +428,7 @@ final class FastKeyboardView extends View {
             case DELETE:actions.delete();break;
             case ENTER:actions.enter();break;
             case MODE:symbols=!symbols;shifted=false;buildKeys();break;
+            case SUGGEST:actions.choose(key.output);break;
             default:break;
         }
     }
