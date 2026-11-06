@@ -2,6 +2,7 @@
 package com.snowglobe.overlay
 
 import android.os.Build
+import android.provider.Settings
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -191,9 +192,24 @@ internal class HolidayActions(
                             4->{
                                 item{KeyboardLookPreview(prefs,state.revision)}
                                 item{HolidayCard("Use Christmas Keys","Two steps. Android always lets you switch back to your current keyboard."){
+                                    val isSelected=remember(state.revision){runCatching{
+                                        val name=Settings.Secure.getString(context.contentResolver,Settings.Secure.DEFAULT_INPUT_METHOD)
+                                        name!=null&&name.startsWith(context.packageName+"/")&&name.endsWith(".ChristmasKeyboardService")
+                                    }.getOrDefault(false)}
+                                    Text(if(isSelected)"● SnowGlobe keyboard selected"else "○ Enable and select when ready",
+                                        style=MaterialTheme.typography.labelLarge,color=if(isSelected)colors.primary else colors.onSurfaceVariant)
                                     Button(onClick=actions.keyboardSettings,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("1. Enable SnowGlobe keyboard")}
                                     OutlinedButton(onClick=actions.keyboardPicker,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("2. Select SnowGlobe keyboard")}
                                     Text("The keyboard cannot replace Gboard until you choose it in Android settings.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
+                                item{HolidayCard("Test your keyboard","Tap below after selecting SnowGlobe to check real typing."){
+                                    var typed by remember{mutableStateOf("")}
+                                    OutlinedTextField(value=typed,onValueChange={typed=it.take(120)},
+                                        label={Text("Try Christmas Keys")},placeholder={Text("Type a holiday message…")},
+                                        singleLine=true,modifier=Modifier.fillMaxWidth())
+                                    Text("Test text stays only in this screen's memory. You can clear it at any time.",
+                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                    TextButton(onClick={typed=""}){Text("Clear test text")}
                                 }}
                                 item{HolidayCard("Premium keyboard themes","A distinct atmosphere for every holiday moment."){
                                     HolidayChoice(prefs,state,actions,"Keyboard theme","keyboardTheme",listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
