@@ -31,8 +31,8 @@ jobs:
       - name: Render and UI tests on Android 17
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 37.0
-          system-image-api-level: 37.0
+          api-level: '37.0'
+          system-image-api-level: '37.0'
           channel: stable
           arch: x86_64
           target: google_apis
