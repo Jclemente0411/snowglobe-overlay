@@ -6,9 +6,12 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
+import android.graphics.Rect;
+import android.os.Bundle;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityNodeProvider;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.util.SparseArray;
 import android.util.TypedValue;
 import android.view.HapticFeedbackConstants;
@@ -43,7 +46,7 @@ final class FastKeyboardView extends View {
     private final InputActions actions;
     private boolean shifted=true, symbols=false, running=false;
     private int pulse=0;
-    private long lastTouchUptime=0;
+
     private final Runnable rgbTick=new Runnable(){
         @Override public void run(){
             if(!running||!preferences.getBoolean("keyboardRgb",true))return;
@@ -65,8 +68,9 @@ final class FastKeyboardView extends View {
         final String legend,output;
         final int kind;
         final RectF bounds=new RectF();
+        final RectF hitBox=new RectF();
         Key(String legend,String output,int kind){this.legend=legend;this.output=output;this.kind=kind;}
-        boolean isInside(float x,float y){return bounds.contains(x,y);}
+        boolean isInside(float x,float y){return hitBox.contains(x,y);}
     }
     static final int LETTER=0,STATIC=1,SHIFT=2,DELETE=3,MODE=4,ENTER=5,SPACE=6;
     FastKeyboardView(Context c,SharedPreferences prefs,InputActions actions){
@@ -74,7 +78,8 @@ final class FastKeyboardView extends View {
         this.preferences=prefs;this.actions=actions;
         setBackgroundColor(BACKGROUND);
         setHapticFeedbackEnabled(true);
-        setFocusable(false);
+        setFocusable(true);
+        setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         setLayerType(View.LAYER_TYPE_HARDWARE,null);
     }
     private float dp(float size){return size*getResources().getDisplayMetrics().density;}
@@ -114,6 +119,7 @@ final class FastKeyboardView extends View {
         Key key=new Key(legend,output,kind);
         float gx=dp(2.0f),gy=dp(3.0f);
         key.bounds.set(x+gx,y+gy,x+width-gx,y+height-gy);
+        key.hitBox.set(x,y,x+width,y+height);
         keys.add(key);
         return key;
     }
@@ -207,6 +213,43 @@ final class FastKeyboardView extends View {
         }
         // Keep the native Android gesture/navigation area clear; draw no fake pill.
     }
+
+    private final AccessibilityNodeProvider accessibility=new AccessibilityNodeProvider(){
+        @Override public AccessibilityNodeInfo createAccessibilityNodeInfo(int virtualId){
+            if(virtualId==HOST_VIEW_ID){
+                AccessibilityNodeInfo host=AccessibilityNodeInfo.obtain(FastKeyboardView.this);
+                host.setClassName(FastKeyboardView.class.getName());
+                host.setPackageName(getContext().getPackageName());
+                for(int i=0;i<keys.size();i++)host.addChild(FastKeyboardView.this,i);
+                return host;
+            }
+            if(virtualId<0||virtualId>=keys.size())return null;
+            Key key=keys.get(virtualId);
+            AccessibilityNodeInfo info=AccessibilityNodeInfo.obtain(FastKeyboardView.this,virtualId);
+            info.setPackageName(getContext().getPackageName());
+            info.setClassName("android.widget.Button");
+            info.setSource(FastKeyboardView.this,virtualId);
+            info.setParent(FastKeyboardView.this);
+            String label=key.kind==LETTER&&shifted?key.legend.toUpperCase(Locale.ROOT):key.legend;
+            info.setText(label);
+            info.setContentDescription(label);
+            info.setClickable(true);info.setEnabled(true);
+            info.addAction(AccessibilityNodeInfo.AccessibilityAction.ACTION_CLICK);
+            Rect bounds=new Rect(Math.round(key.hitBox.left),Math.round(key.hitBox.top),
+                 Math.round(key.hitBox.right),Math.round(key.hitBox.bottom));
+            info.setBoundsInParent(bounds);
+            int[] location=new int[2];getLocationOnScreen(location);
+            bounds.offset(location[0],location[1]);info.setBoundsInScreen(bounds);
+            return info;
+        }
+        @Override public boolean performAction(int id,int action,Bundle args){
+            if(id>=0&&id<keys.size()&&action==AccessibilityNodeInfo.ACTION_CLICK){
+                perform(keys.get(id));invalidate();return true;
+            }
+            return false;
+        }
+    };
+    @Override public AccessibilityNodeProvider getAccessibilityNodeProvider(){return accessibility;}
     private boolean isPressed(Key key){
         for(int i=0;i<pressed.size();i++)if(pressed.valueAt(i)==key)return true;
         return false;
@@ -261,7 +304,7 @@ final class FastKeyboardView extends View {
             if(id==repeatPointer){repeatPointer=-1;handler.removeCallbacks(deleteRepeat);deleteRepeating=false;}
             pressed.remove(id);starts.remove(id);
             if(key!=null&&key.isInside(event.getX(index),event.getY(index))&&!repeated){
-                perform(key);lastTouchUptime=SystemClock.uptimeMillis();
+                perform(key);
             }
             invalidate();
             return true;
