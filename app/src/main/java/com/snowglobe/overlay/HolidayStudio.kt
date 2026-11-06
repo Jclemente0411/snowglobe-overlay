@@ -136,9 +136,9 @@ internal class HolidayActions(
                                 }}
                                 item{HolidayScenes(prefs,state,actions)}
                                 item{HolidayCard("Touch-friendly mode","Top-edge effects are the default for better tap compatibility."){
-                                    HolidayToggle(prefs,state,actions,"Effects near the top only","edgeOnly",true,
+                                    HolidayToggle(prefs,state,actions,"Limit snowfall to top edge (safer taps)","edgeOnly",false,
                                         "Keep the falling effects in the top quarter of the screen.")
-                                    Text("Full-screen effects can block taps in other apps, including checkout. Keep top-only on for safer use; Pause before payment or login screens.",
+                                    Text("Full-screen snowfall now covers the entire display again. Some secure app controls block touches through overlays; switch on top-edge-only mode or Pause effects before payment or login.",
                                         style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                                 if(state.canUndo)item{TextButton(onClick=actions.undo){Text("Undo last scene")}}
@@ -229,7 +229,7 @@ internal class HolidayActions(
                         else->{
                             item{OutlinedButton(onClick={sheet="setup"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pixel setup guide")}}
                             item{HolidayCard("Safe taps & quick control","Pause before shopping or protected screens."){
-                                HolidayToggle(prefs,state,actions,"Top-edge-only effects","edgeOnly",true,
+                                HolidayToggle(prefs,state,actions,"Top-edge-only effects (safer taps)","edgeOnly",false,
                                     "A smaller overlay leaves most of the screen uncovered. Checkout may still require Pause.")
                                 OutlinedButton(onClick=actions.pauseAndOpenPlay,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pause & open Google Play")}
                                 OutlinedButton(onClick=actions.addTile,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Add Quick Settings control")}
