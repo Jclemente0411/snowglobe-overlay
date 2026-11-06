@@ -17,30 +17,25 @@ import android.view.inputmethod.InputConnection;
 public final class ChristmasKeyboardService extends InputMethodService {
     private SharedPreferences preferences;
     private FastKeyboardView keyboard;
+    private KeyboardTextEngine engine;
 
     @Override public void onCreate(){
         super.onCreate();
         preferences=getSharedPreferences("snowglobe",MODE_PRIVATE);
     }
     @Override public View onCreateInputView(){
+        engine=new KeyboardTextEngine(new KeyboardTextEngine.ConnectionProvider(){
+            @Override public InputConnection current(){return getCurrentInputConnection();}
+            @Override public EditorInfo editor(){return getCurrentInputEditorInfo();}
+            @Override public void candidates(java.util.List<String> options){
+                if(keyboard!=null)keyboard.setSuggestions(options);
+            }
+        },preferences);
         keyboard=new FastKeyboardView(this,preferences,new FastKeyboardView.InputActions(){
-            @Override public void commit(String value){
-                InputConnection ic=getCurrentInputConnection();
-                if(ic!=null)ic.commitText(value,1);
-            }
-            @Override public void delete(){
-                InputConnection ic=getCurrentInputConnection();
-                if(ic!=null)ic.deleteSurroundingText(1,0);
-            }
-            @Override public void enter(){
-                InputConnection ic=getCurrentInputConnection();
-                if(ic==null)return;
-                EditorInfo info=getCurrentInputEditorInfo();
-                int action=info==null?EditorInfo.IME_ACTION_NONE:info.imeOptions&EditorInfo.IME_MASK_ACTION;
-                if(action!=EditorInfo.IME_ACTION_NONE&&action!=EditorInfo.IME_ACTION_UNSPECIFIED
-                     &&ic.performEditorAction(action))return;
-                ic.commitText("\n",1);
-            }
+            @Override public void commit(String value){engine.input(value);}
+            @Override public void delete(){engine.backspace();}
+            @Override public void enter(){engine.enter();}
+            @Override public void choose(String suggestion){engine.choose(suggestion);}
         });
         return keyboard;
     }
@@ -54,8 +49,10 @@ public final class ChristmasKeyboardService extends InputMethodService {
             window.setBackgroundDrawable(new ColorDrawable(Color.rgb(16,37,58)));
         }
         if(keyboard!=null)keyboard.start();
+        if(engine!=null)engine.begin(info);
     }
     @Override public void onFinishInputView(boolean finishingInput){
+        if(engine!=null)engine.finish();
         if(keyboard!=null)keyboard.stop();
         super.onFinishInputView(finishingInput);
     }
