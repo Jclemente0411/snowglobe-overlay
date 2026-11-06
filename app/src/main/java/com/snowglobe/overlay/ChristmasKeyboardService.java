@@ -1,10 +1,8 @@
 package com.snowglobe.overlay;
 
-import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.graphics.drawable.RippleDrawable;
 import android.content.res.ColorStateList;
 import android.view.HapticFeedbackConstants;
@@ -12,7 +10,6 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.inputmethodservice.InputMethodService;
-import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -30,7 +27,6 @@ public final class ChristmasKeyboardService extends InputMethodService {
     private SharedPreferences preferences;
     private final Handler handler=new Handler(Looper.getMainLooper());
     private boolean active=false;
-    private long lastPulse=0;
     private int pulse=0;
     private LinearLayout lights;
     private final Runnable animate=new Runnable(){public void run(){if(!active||lights==null)return;int speed=preferences.getInt("keyboardRgbSpeed",45);pulse++;for(int i=0;i<lights.getChildCount();i++){TextView bulb=(TextView)lights.getChildAt(i);int theme=preferences.getInt("keyboardTheme",0);int[] palette=palette(theme);int color=palette[(i+pulse/2)%palette.length];bulb.setTextColor(color);}handler.postDelayed(this,Math.max(85,400-speed*3));}};
@@ -58,7 +54,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
     }
     @Override public void onStartInputView(EditorInfo info,boolean restarting){
         super.onStartInputView(info,restarting);
-        shifted=true;symbols=false;active=true;if(root!=null)render();startLights();
+        shifted=true;symbols=false;active=true;if(root!=null)render();
     }
     private void startLights(){handler.removeCallbacks(animate);if(active&&preferences.getBoolean("keyboardRgb",true))handler.post(animate);}
     private void render(){
