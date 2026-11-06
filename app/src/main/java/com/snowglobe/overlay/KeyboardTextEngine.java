@@ -21,6 +21,7 @@ final class KeyboardTextEngine {
     private final SharedPreferences preferences;
     private final StringBuilder word=new StringBuilder(28);
     private boolean suggestionsEnabled;
+    private boolean compositionEnabled;
     private boolean autocorrectEnabled;
     private boolean sensitive;
     private String lastOriginal=null,lastCorrection=null;
@@ -56,8 +57,10 @@ final class KeyboardTextEngine {
     void begin(EditorInfo info){
         word.setLength(0);lastOriginal=null;lastCorrection=null;lastDelimiter=null;
         sensitive=privateEditor(info);
-        suggestionsEnabled=ordinaryText(info)&&preferences.getBoolean("keyboardSuggestions",true);
-        autocorrectEnabled=suggestionsEnabled&&preferences.getBoolean("keyboardAutoCorrect",true);
+        boolean ordinary=ordinaryText(info);
+        suggestionsEnabled=ordinary&&preferences.getBoolean("keyboardSuggestions",true);
+        autocorrectEnabled=ordinary&&preferences.getBoolean("keyboardAutoCorrect",true);
+        compositionEnabled=suggestionsEnabled||autocorrectEnabled;
         host.candidates(Collections.emptyList());
     }
     void finish(){
@@ -72,7 +75,7 @@ final class KeyboardTextEngine {
     void input(String value){
         InputConnection ic=host.current();
         if(ic==null||value==null||value.isEmpty())return;
-        if(!suggestionsEnabled){
+        if(!compositionEnabled){
             ic.commitText(value,1);
             return;
         }
@@ -81,7 +84,7 @@ final class KeyboardTextEngine {
             lastOriginal=null;lastCorrection=null;lastDelimiter=null;
             word.append(value);
             // Mark just the active word as composing, never the entire text field.
-            if(!ic.setComposingText(word,1)){
+            if(!ic.setComposingText(word.toString(),1)){
                 // Some editors do not implement composing; avoid re-inserting entire word.
                 ic.commitText(value,1);
                 word.setLength(0);
@@ -120,7 +123,7 @@ final class KeyboardTextEngine {
         InputConnection ic=host.current();if(ic==null)return;
         if(word.length()>0){
             word.deleteCharAt(word.length()-1);
-            ic.setComposingText(word,1);
+            ic.setComposingText(word.toString(),1);
             updateCandidates();
             return;
         }
