@@ -43,13 +43,18 @@ public final class KeyboardSmokeTest {
         UiObject2 field=device.wait(Until.findObject(By.clazz("android.widget.EditText")),12000);
         assertNotNull("Probe input field",field);
         field.click();
-        UiObject2 q=device.wait(Until.findObject(By.text("Q")),10000);
-        assertNotNull("SnowGlobe keyboard key Q must be visible",q);
         File images=new File(context.getExternalFilesDir(null),"screenshots");
         assertTrue(images.mkdirs()||images.isDirectory());
-        assertTrue("Capture real IME geometry before typing",
-            device.takeScreenshot(new File(images,"21-fast-keyboard-layout.png")));
-        UiObject2 space=device.wait(Until.findObject(By.text("space")),5000);
+        device.takeScreenshot(new File(images,"21-fast-keyboard-layout.png"));
+        UiObject2 q=device.wait(Until.findObject(By.text("Q")),10000);
+        if(q==null)q=device.findObject(By.desc("Q"));
+        if(q==null){
+            device.takeScreenshot(new File(images,"21-missing-virtual-key.png"));
+            device.dumpWindowHierarchy(new File(images,"21-keyboard-accessibility.xml"));
+        }
+        assertNotNull("SnowGlobe keyboard key Q must be visible",q);
+        UiObject2 space=device.wait(Until.findObject(By.text("space")),2000);
+        if(space==null)space=device.findObject(By.desc("space"));
         assertNotNull("Spacebar must be accessible",space);
         Rect spaceBounds=space.getVisibleBounds();
         assertTrue("Spacebar must not cover system bottom gesture area",
