@@ -15,10 +15,10 @@ import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.Button;
+import android.view.ViewConfiguration;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.view.MotionEvent;
-import android.view.KeyEvent;
 
 /**
  * Explicitly user-selected keyboard. Never draws a SYSTEM_ALERT_WINDOW,
@@ -31,6 +31,8 @@ public final class ChristmasKeyboardService extends InputMethodService {
     private boolean active=false;
     private int pulse=0;
     private LinearLayout lights;
+    private float touchStartX,touchStartY;
+    private boolean touchCancelled;
     private final Runnable animate=new Runnable(){public void run(){if(!active||lights==null)return;int speed=preferences.getInt("keyboardRgbSpeed",45);pulse++;for(int i=0;i<lights.getChildCount();i++){TextView bulb=(TextView)lights.getChildAt(i);int theme=preferences.getInt("keyboardTheme",0);int[] palette=palette(theme);int color=palette[(i+pulse/2)%palette.length];bulb.setTextColor(color);}handler.postDelayed(this,Math.max(85,400-speed*3));}};
     private boolean shifted = true;
     private boolean symbols = false;
@@ -53,7 +55,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
     }
     @Override public View onCreateInputView(){
         root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(3),dp(4),dp(3),dp(5));root.setBackgroundColor(0xff112338);
+        root.setPadding(dp(3),dp(1),dp(3),dp(1));root.setBackgroundColor(0xff112338);
         render();return root;
     }
     @Override public void onStartInputView(EditorInfo info,boolean restarting){
@@ -66,15 +68,15 @@ public final class ChristmasKeyboardService extends InputMethodService {
         lights=new LinearLayout(this);lights.setGravity(Gravity.CENTER);
         for(int i=0;i<14;i++){
             TextView bulb=new TextView(this);bulb.setText("●");bulb.setTextColor(palette(preferences.getInt("keyboardTheme",0))[i%palette(preferences.getInt("keyboardTheme",0)).length]);
-            bulb.setTextSize(13);bulb.setGravity(Gravity.CENTER);
-            lights.addView(bulb,new LinearLayout.LayoutParams(0,dp(23),1));
+            bulb.setTextSize(9);bulb.setGravity(Gravity.CENTER);
+            lights.addView(bulb,new LinearLayout.LayoutParams(0,dp(10),1));
         }
         root.addView(lights);
         startLights();
         TextView label=new TextView(this);
         label.setText("❄ SnowGlobe  •  Christmas Keys");label.setTextColor(0xffd8f5ff);
-        label.setTextSize(12);label.setGravity(Gravity.CENTER);label.setPadding(0,0,0,dp(3));
-        root.addView(label);
+        label.setTextSize(11);label.setGravity(Gravity.CENTER);label.setPadding(0,0,0,0);
+        root.addView(label,new LinearLayout.LayoutParams(-1,dp(26)));
         if(symbols){
             row("1234567890",0);row("@#$%&-+()/",1);row("*\"':;!?.,",2);
         }else{
@@ -86,7 +88,6 @@ public final class ChristmasKeyboardService extends InputMethodService {
         addKey(bottom,"☻",.65f,()->type("☺"),true);
         addKey(bottom,"space",4.1f,()->type(" "),false);
         addKey(bottom,".",.65f,()->type("."),false);
-        addKey(bottom,"⌫",.9f,()->{InputConnection ic=getCurrentInputConnection();if(ic!=null)ic.deleteSurroundingText(1,0);},true);
         addKey(bottom,"↵",1.05f,this::enter,true);
         root.addView(bottom);
     }
@@ -94,7 +95,7 @@ public final class ChristmasKeyboardService extends InputMethodService {
         LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER);
         // Gboard-like rows: 10 full keys, 9 centered keys, and a seven-letter row
         // with shift/backspace occupying the outer slots.
-        if(index==1)line.setPadding(dp(16),0,dp(16),0);
+        if(index==1)line.setPadding(dp(15),0,dp(15),0);
         if(index==2)addKey(line,"⇧",1.2f,()->{shifted=!shifted;updateCase();},true);
         for(int i=0;i<chars.length();i++){
             final String character=String.valueOf(chars.charAt(i));
@@ -119,7 +120,9 @@ public final class ChristmasKeyboardService extends InputMethodService {
         }
     }
     private Button addKey(LinearLayout line,String text,float weight,Runnable action,boolean special){
-        Button b=new Button(this);b.setAllCaps(false);b.setText(text);b.setTextSize(text.length()>2?12:17);
+        Button b=new Button(this);b.setAllCaps(false);b.setText(text);b.setTextSize(text.length()>2?12:19);
+        b.setIncludeFontPadding(false);b.setGravity(Gravity.CENTER);
+        b.setStateListAnimator(null);b.setElevation(0);
         b.setTypeface(Typeface.DEFAULT,special?Typeface.BOLD:Typeface.NORMAL);
         b.setTextColor(special?0xfff3e8bf:Color.WHITE);
         int theme=preferences.getInt("keyboardTheme",0);
@@ -128,9 +131,31 @@ public final class ChristmasKeyboardService extends InputMethodService {
         b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x667fffd2),background(special?0xff31536b:base,edge,12),null));
         b.setMinWidth(0);b.setMinimumWidth(0);b.setMinHeight(0);b.setMinimumHeight(0);
         b.setPadding(0,0,0,0);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(49),weight);
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(46),weight);
         p.setMargins(dp(2),dp(3),dp(2),dp(3));line.addView(b,p);
-        b.setOnTouchListener((v,event)->{if(event.getActionMasked()==MotionEvent.ACTION_DOWN){if(preferences.getBoolean("keyboardHaptics",true))v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);action.run();return true;}return true;});
+        b.setOnTouchListener((v,event)->{
+            switch(event.getActionMasked()){
+                case MotionEvent.ACTION_DOWN:
+                    touchStartX=event.getX();touchStartY=event.getY();touchCancelled=false;
+                    v.setPressed(true);return true;
+                case MotionEvent.ACTION_MOVE:
+                    int slop=ViewConfiguration.get(v.getContext()).getScaledTouchSlop();
+                    if(Math.abs(event.getX()-touchStartX)>slop*2||Math.abs(event.getY()-touchStartY)>slop*2){
+                        touchCancelled=true;v.setPressed(false);
+                    }
+                    return true;
+                case MotionEvent.ACTION_UP:
+                    v.setPressed(false);
+                    if(!touchCancelled&&event.getX()>=0&&event.getY()>=0&&event.getX()<v.getWidth()&&event.getY()<v.getHeight()){
+                        if(preferences.getBoolean("keyboardHaptics",true))v.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                        action.run();
+                    }
+                    return true;
+                case MotionEvent.ACTION_CANCEL:
+                    v.setPressed(false);touchCancelled=true;return true;
+                default:return true;
+            }
+        });
         return b;
     }
     private void type(String value){
