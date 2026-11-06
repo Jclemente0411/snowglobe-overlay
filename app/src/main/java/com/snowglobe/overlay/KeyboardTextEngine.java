@@ -67,6 +67,10 @@ final class KeyboardTextEngine {
         word.setLength(0);lastOriginal=null;lastCorrection=null;lastDelimiter=null;
         host.candidates(Collections.emptyList());
     }
+    private static boolean collapsedSelection(InputConnection ic){
+        CharSequence selection=ic.getSelectedText(0);
+        return selection==null||selection.length()==0;
+    }
     private static boolean letter(String value){
         return value!=null&&value.length()==1&&Character.isLetter(value.charAt(0));
     }
@@ -97,7 +101,7 @@ final class KeyboardTextEngine {
             String typed=word.toString();
             // A moved caret must never cause replacement of unrelated editor text.
             CharSequence before=ic.getTextBeforeCursor(typed.length(),0);
-            boolean matches=before!=null&&typed.contentEquals(before);
+            boolean matches=collapsedSelection(ic)&&before!=null&&typed.contentEquals(before);
             String fixed=matches&&autocorrectEnabled?KeyboardDictionary.correct(typed):typed;
             boolean corrected=matches&&!fixed.equals(typed);
             lastOriginal=corrected?typed:null;
@@ -122,7 +126,7 @@ final class KeyboardTextEngine {
         InputConnection ic=host.current();if(ic==null)return;
         String typed=word.toString();
         CharSequence before=ic.getTextBeforeCursor(typed.length(),0);
-        if(before==null||!typed.contentEquals(before)){
+        if(!collapsedSelection(ic)||before==null||!typed.contentEquals(before)){
             word.setLength(0);host.candidates(Collections.emptyList());return;
         }
         ic.beginBatchEdit();
@@ -143,7 +147,7 @@ final class KeyboardTextEngine {
             updateCandidates();
             return;
         }
-        if(lastOriginal!=null&&lastCorrection!=null&&lastDelimiter!=null){
+        if(lastOriginal!=null&&lastCorrection!=null&&lastDelimiter!=null&&collapsedSelection(ic)){
             final String raw=lastOriginal;
             final int n=lastCorrection.length()+lastDelimiter.length();
             lastOriginal=null;lastCorrection=null;lastDelimiter=null;
