@@ -26,7 +26,8 @@ public final class KeyboardSmokeTest {
         previousIme=device.executeShellCommand("settings get secure default_input_method").trim();
         device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 1");
         SharedPreferences p=context.getSharedPreferences("snowglobe",0);
-        p.edit().putBoolean("effectsEnabled",false).putBoolean("keyboardRgb",false).commit();
+        p.edit().putBoolean("effectsEnabled",false).putBoolean("keyboardRgb",false)
+            .putBoolean("keyboardAutoCorrect",true).putBoolean("keyboardSuggestions",true).commit();
     }
     @After public void cleanup() throws Exception {
         device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 0");
@@ -67,5 +68,19 @@ public final class KeyboardSmokeTest {
         SystemClock.sleep(300);
         String after=field.getText();
         assertTrue("Backspace must delete text",after.isEmpty()||"TYPE HERE".equals(after));
+        for(char ch:new char[]{'t','e','h'}){
+            UiObject2 letter=device.wait(Until.findObject(By.text(String.valueOf(ch))),5000);
+            assertNotNull("Expected spelling test letter "+ch,letter);
+            letter.click();
+        }
+        UiObject2 spacing=device.wait(Until.findObject(By.text("space")),5000);
+        assertNotNull(spacing);spacing.click();
+        SystemClock.sleep(350);
+        assertEquals("the",field.getText().trim());
+        UiObject2 erase=device.wait(Until.findObject(By.text("⌫")),5000);
+        assertNotNull(erase);erase.click();
+        SystemClock.sleep(250);
+        assertEquals("teh",field.getText());
+        device.takeScreenshot(new File(images,"23-autocorrect-and-rgb.png"));
     }
 }
