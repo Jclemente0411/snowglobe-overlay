@@ -9,6 +9,8 @@ import android.graphics.RectF;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityManager;
+import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeProvider;
 import android.os.Handler;
 import android.os.Looper;
@@ -47,6 +49,15 @@ final class FastKeyboardView extends View {
     private final ArrayList<Key> suggestionKeys=new ArrayList<>(3);
     private final SparseArray<float[]> starts=new SparseArray<>();
     private final Handler handler=new Handler(Looper.getMainLooper());
+    private final Runnable accessibilityRefresh=()->{
+        AccessibilityManager manager=(AccessibilityManager)getContext().getSystemService(Context.ACCESSIBILITY_SERVICE);
+        if(running&&manager!=null&&manager.isEnabled())
+            sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED);
+    };
+    private void scheduleAccessibilityRefresh(){
+        handler.removeCallbacks(accessibilityRefresh);
+        handler.postDelayed(accessibilityRefresh,110);
+    }
     private final SharedPreferences preferences;
     private final InputActions actions;
     private boolean shifted=true, symbols=false, running=false;
@@ -126,11 +137,12 @@ final class FastKeyboardView extends View {
     }
     void stop(){
         running=false;handler.removeCallbacks(rgbTick);handler.removeCallbacks(deleteRepeat);
+        handler.removeCallbacks(accessibilityRefresh);
         pressed.clear();starts.clear();suggestionKeys.clear();repeatPointer=-1;deleteRepeating=false;invalidate();
     }
     void setSuggestions(List<String> options){
         suggestionKeys.clear();
-        if(options==null||options.isEmpty()){invalidateHeader();return;}
+        if(options==null||options.isEmpty()){invalidateHeader();scheduleAccessibilityRefresh();return;}
         final int count=Math.min(options.size(),3);
         if(getWidth()<=0){invalidateHeader();return;}
         float w=getWidth()-dp(12),x=dp(6),y=dp(2)+topStripe();
@@ -144,6 +156,7 @@ final class FastKeyboardView extends View {
             suggestionKeys.add(key);
         }
         invalidateHeader();
+        scheduleAccessibilityRefresh();
     }
     private void invalidateHeader(){
         invalidate(0,0,getWidth(),Math.round(topStripe()+headerHeight()+dp(4)));
@@ -423,13 +436,13 @@ final class FastKeyboardView extends View {
         switch(key.kind){
             case LETTER:
                 actions.commit(shifted?key.output.toUpperCase(Locale.ROOT):key.output);
-                if(shifted)shifted=false;
+                if(shifted){shifted=false;scheduleAccessibilityRefresh();}
                 break;
             case STATIC:case SPACE:actions.commit(key.output);break;
-            case SHIFT:shifted=!shifted;break;
+            case SHIFT:shifted=!shifted;scheduleAccessibilityRefresh();break;
             case DELETE:actions.delete();break;
             case ENTER:actions.enter();break;
-            case MODE:symbols=!symbols;shifted=false;buildKeys();break;
+            case MODE:symbols=!symbols;shifted=false;buildKeys();scheduleAccessibilityRefresh();break;
             case SUGGEST:actions.choose(key.output);break;
             default:break;
         }
