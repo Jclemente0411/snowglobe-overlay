@@ -1,6 +1,6 @@
 # SnowGlobe 0.22.0 release audit
 
-Audit date: November 7, 2026. Candidate: `com.snowglobe.overlay`, version **0.22.0 / 100029**, minimum API 26 and target API 36. Integrated compilation, device execution and final signing are in progress; results will be recorded from the actual completed runs.
+Audit date: November 7, 2026. Candidate: `com.snowglobe.overlay`, version **0.22.0 / 100029**, minimum API 26 and target API 36. Tested source: `2ac86d07bb15747e7b8686569c04acd3dd6bb534`. [Release workflow](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42383243986). Local compilation and host tests have passed; device execution and final signing remain in progress.
 
 ## Scope delivered in source
 
@@ -18,11 +18,26 @@ The workflow runs every currently declared device test, including full snow cove
 
 Signing uses the existing upload key only after both Android 15 and Android 17 jobs pass. The final AAB must pass strict signature verification, compiled package/version/service checks, bundletool validation and native/APK 16 KB alignment. The bundle includes exact source and checksum records plus a separate `commerce-status.txt`.
 
+## Completed local verification
+
+- **90 JVM/Android-simulation tests passed**, with zero failures, errors or skips. These include 19 billing-controller cases, four premium-policy cases, six native snow-renderer cases and three artwork cases.
+- **41 release/readiness script tests passed.** Their package checks reject any input-method service, including disabled or renamed declarations.
+- Kotlin/Java compilation, debug lint, instrumentation APK packaging and the separate tap-probe APK build all completed successfully with JDK 17 and Gradle 8.11.1.
+- Debug lint reported **zero errors and 18 warnings**. The warnings comprise eight `UseKtx`, three `ObsoleteSdkInt`, three `UseRequiresApi`, and one each of `SetTextI18n`, `ViewConstructor`, `MonochromeLauncherIcon` and `StaticFieldLeak`. The v33 adaptive icon includes its monochrome layer; the v26 fallback triggers the icon hint. The service's existing static live-instance reference is cleared in `onDestroy`. These are retained findings, not a claim of a warning-free lint report.
+- Reviewed all nine actual native renders: three portrait snow styles, landscape crystals, all four wallpapers and the launcher icon. Snow extends to the bottom edge in every rendered orientation, with visible size/depth differences. Artwork is complete and the icon remains centered and uncropped. The 4K export test verifies real 2160 × 3840 PNG output.
+- A second independent purchase review found and corrected two cross-controller ordering cases before this source was frozen: a stale empty query after a new purchase, and a late acknowledgement after a newer revocation. Shared receipt-observation generations now guard both; the corresponding regressions are included in the passing billing tests.
+
 ## Paid-release limitation
 
-The prepared product is `holiday_plus_lifetime`, USD 2.99 once, in the existing app. Build metadata records whether a genuine RSA licensing public key was supplied. Missing configuration does not create a purchasable product or grant a local entitlement. It preserves a usable free app, with checkout disabled. See [Holiday Plus setup](HOLIDAY_PLUS_SETUP.md).
+The prepared product is `holiday_plus_lifetime`, USD 2.99 once, in the existing app. Build metadata records whether a valid-format RSA licensing public key was supplied; the flag alone cannot prove that the key belongs to this app's Console listing. App/key correspondence, product activation and a real Play test transaction require separate verification. Missing configuration does not create a purchasable product or grant a local entitlement. It preserves a usable free app, with checkout disabled. See [Holiday Plus setup](HOLIDAY_PLUS_SETUP.md).
 
 The Cloud browser's attempted Play Console access was rejected by automatic approval review because of an unapproved `google.play` redirect. No Console state or real test purchase has been verified, and the block has not been bypassed. Play activation, account declarations, Google review and any account-specific production-access requirements are distinct from an AAB passing technical checks.
+
+## Initial device attempt
+
+The first 0.22.0 candidate's Android 15 job passed all three preliminary cases, then lost the entire emulator during the full suite after three completed cases. ADB reported that the device was absent and the emulator console port refused connections. The interrupted case had no assertion message or stack trace; captured guest logs did not show an app fatal exception at the interruption. This is an **incomplete, failed run**, not a passing app suite.
+
+That attempt did not retain host kernel, cgroup or emulator-crash records, so the evidence cannot establish whether host memory pressure or a native emulator failure caused the loss. The next runner revision lowers only the instrumentation Gradle heap/worker budget and AVD RAM, and retains bounded host diagnostics before and after execution. These are resource-risk reduction and diagnostic corrections, not proof of an identified OOM defect. App tests, screenshot requirements and failure gates remain unchanged, and no app assertion is automatically retried.
 
 ## Evidence to record after completion
 
