@@ -17,6 +17,7 @@ import static org.junit.Assert.*;
 
 @RunWith(AndroidJUnit4.class)
 public class ChristmasMagicTest {
+    @Rule public final DeviceEvidence evidence=new DeviceEvidence();
     private Context context;
     private UiDevice device;
     private File screenshots;
@@ -37,22 +38,29 @@ public class ChristmasMagicTest {
         SystemClock.sleep(500);
         assertTrue(device.takeScreenshot(new File(screenshots,file)));
     }
+    private boolean revealHomeSection(String title){
+        BySelector target=By.text(title);
+        for(int attempt=0;attempt<=12;attempt++){
+            // The target can already be in the initial viewport; never scroll past it first.
+            if(device.wait(Until.hasObject(target),750))return true;
+            if(attempt==12)return false;
+            UiObject2 content=device.wait(Until.findObject(By.scrollable(true)),5000);
+            if(content==null)return false;
+            content.setGestureMarginPercentage(.12f);
+            // Scroll a bounded part of the actual list, with a controlled speed instead of a fling.
+            if(!content.scroll(Direction.DOWN,.4f,900))
+                return device.wait(Until.hasObject(target),1500);
+        }
+        return false;
+    }
     @Test public void pixelSetupAndChristmasScenesAreDiscoverable() throws Exception {
         try(ActivityScenario<StudioActivity> launched=ActivityScenario.launch(StudioActivity.class)){
-            // Depend on the actual destination controls, not a header that may animate during startup.
-            SystemClock.sleep(700);
+            assertTrue("Home destination must be ready",
+                device.wait(Until.hasObject(By.text("Christmas Studio")),15000));
             screenshot("17-christmas-home.png");
-            // Scroll by viewport portions to discover the setup and scene library.
-            int cx=device.getDisplayWidth()/2, h=device.getDisplayHeight();
-            device.swipe(cx,(int)(h*.76f),cx,(int)(h*.35f),16);
-            assertTrue("Pixel setup must be visible",device.wait(Until.hasObject(By.text("Pixel setup")),10000));
+            assertTrue("Pixel setup must be visible",revealHomeSection("Pixel setup"));
             screenshot("17-pixel-setup-summary.png");
-            // Both sections are visible after a single scroll on Pixel 6 emulators.
-            // Do not scroll past the carousel before asserting its presence.
-            for(int attempt=0;attempt<6&&!device.hasObject(By.text("Christmas magic"));attempt++){
-                device.swipe(cx,(int)(h*.72f),cx,(int)(h*.40f),18);
-            }
-            assertTrue("Christmas scene section must be visible",device.wait(Until.hasObject(By.text("Christmas magic")),10000));
+            assertTrue("Christmas scene section must be visible",revealHomeSection("Christmas magic"));
             screenshot("17-curated-scenes.png");
             assertFalse(EffectsService.isActive());
             assertFalse(PremiumPolicy.mayLaunchCheckout());

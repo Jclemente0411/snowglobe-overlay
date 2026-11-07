@@ -64,6 +64,7 @@ READY = {
     "boot": "1", "user": "10", "state": "RUNNING_UNLOCKED",
     "activity": "Service activity: found", "package": "Service package: found",
     "server": "100", "surface": "200",
+    "focus": "Window{123 u0 com.google.android.apps.nexuslauncher/.NexusLauncherActivity}",
 }
 FAKE_ADB = '''#!/usr/bin/env python3
 import json, os, sys
@@ -80,6 +81,8 @@ if any("boot=%s" in arg for arg in sys.argv[1:]):
     if os.environ.get("FAKE_ANDROID_CHURN") == "1":
         state["server"] = str(100 + index)
     print("\\n".join(key + "=" + value for key, value in state.items()))
+elif any("am force-stop --user" in arg for arg in sys.argv[1:]):
+    print("Status: ok")
 else:
     print("fixture diagnostic")
 '''
@@ -94,7 +97,7 @@ class AndroidReadinessTest(unittest.TestCase):
         env = dict(os.environ)
         env.update(PATH=str(path) + os.pathsep + env["PATH"], FAKE_ANDROID_STATE=str(path),
                    SNOWGLOBE_BOOT_TIMEOUT_SECONDS="3", SNOWGLOBE_BOOT_STABLE_SECONDS="1",
-                   SNOWGLOBE_BOOT_POLL_SECONDS="0.05")
+                   SNOWGLOBE_BOOT_POLL_SECONDS="0.05", SNOWGLOBE_BOOT_DIAGNOSTICS_DIR=str(path / "startup-evidence"))
         env.pop("SNOWGLOBE_AVD_NAME", None)
         env.pop("FAKE_ANDROID_CHURN", None)
         return path, env
@@ -128,6 +131,43 @@ class AndroidReadinessTest(unittest.TestCase):
             self.assertEqual(0, result.returncode, result.stdout + result.stderr)
             self.assertIn("system_server=350, surfaceflinger=450", result.stdout)
             self.assertGreater(int((path / "sample-count").read_text()), 3)
+
+    def test_startup_launcher_anr_is_recovered_once_before_stability(self):
+        blocked = dict(READY, focus="Window{123 u0 Application Not Responding: com.google.android.apps.nexuslauncher}")
+        with tempfile.TemporaryDirectory() as folder:
+            path, env = self.setup_fixture(folder, [READY, blocked, READY])
+            result = self.run_wait(env)
+            self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+            commands = [json.loads(line) for line in (path / "commands.jsonl").read_text().splitlines()]
+            restarts = [command for command in commands if any("am force-stop --user" in arg for arg in command)]
+            self.assertEqual(1, len(restarts))
+            self.assertIn("am force-stop --user 10 com.google.android.apps.nexuslauncher", restarts[0][-1])
+            self.assertFalse(any("input keyevent 82" in arg for command in commands for arg in command))
+            self.assertTrue((path / "startup-evidence/dialog-0/windows.txt").is_file())
+            self.assertIn("Application Not Responding", (path / "startup-evidence/dialog-0/readiness.txt").read_text())
+
+    def test_repeated_launcher_anr_is_not_retried(self):
+        blocked = dict(READY, focus="Window{123 u0 Application Not Responding: com.google.android.apps.nexuslauncher}")
+        with tempfile.TemporaryDirectory() as folder:
+            path, env = self.setup_fixture(folder, [blocked, blocked])
+            result = self.run_wait(env)
+            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+            commands = [json.loads(line) for line in (path / "commands.jsonl").read_text().splitlines()]
+            self.assertEqual(1, sum(any("am force-stop --user" in arg for arg in command) for command in commands))
+            self.assertTrue((path / "startup-evidence/dialog-1/windows.txt").is_file())
+
+    def test_other_anrs_and_crash_dialogs_are_never_recovered(self):
+        for title in ["Application Not Responding: com.snowglobe.overlay",
+                      "Application Not Responding: com.snowglobe.taptest",
+                      "Application Not Responding: com.android.settings",
+                      "Application Error: com.google.android.apps.nexuslauncher"]:
+            with self.subTest(title=title), tempfile.TemporaryDirectory() as folder:
+                path, env = self.setup_fixture(folder, [dict(READY, focus="Window{123 u0 " + title + "}")])
+                result = self.run_wait(env)
+                self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+                commands = [json.loads(line) for line in (path / "commands.jsonl").read_text().splitlines()]
+                self.assertFalse(any("am force-stop" in arg for command in commands for arg in command))
+                self.assertTrue((path / "startup-evidence/dialog-0/windows.txt").is_file())
 
     def test_failure_collects_system_diagnostics_without_changing_exit_status(self):
         with tempfile.TemporaryDirectory() as folder:
