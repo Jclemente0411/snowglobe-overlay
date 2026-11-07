@@ -82,12 +82,13 @@ public final class HolidayPlusUiTest {
     private UiObject2 text(String value) throws Exception {return reveal(By.text(value),value);}
 
     private UiObject2 button(String value) throws Exception {
-        // Compose exposes the label as an enabled TextView even when its Button is disabled.
-        // Check the control's role, never the label's inherited/default enabled state.
+        // The observed Compose tree uses a clickable View, with a separate enabled TextView.
+        // Read the nearest control's state; never mistake its label or the sheet for the button.
         for(UiObject2 node=text(value);node!=null;node=node.getParent()){
-            if("android.widget.Button".equals(node.getClassName()))return node;
+            if(node.isScrollable())break;
+            if(node.isClickable())return node;
         }
-        fail("Expected a Button semantics ancestor for: "+value);
+        fail("Expected a clickable control before the scroll container for: "+value);
         return null;
     }
 

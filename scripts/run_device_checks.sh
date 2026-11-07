@@ -53,7 +53,7 @@ if [ ! -s "$probe" ]; then
   exit 1
 fi
 adb install -r "$probe"
-# Fail early on package privacy, actual Billing SDK integration and scene discovery (4 cases).
+# Fail early on package privacy, Billing SDK/upgrade UI and scene discovery (5 cases).
 # Keep preliminary evidence outside qa-screenshots and connected results so it
 # cannot satisfy the full-suite gate or duplicate required screenshot names.
 preflight_dir=app/build/reports/release-preflight
@@ -61,7 +61,7 @@ mkdir -p "$preflight_dir"
 set +e
 gradle --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx1024m -Dfile.encoding=UTF-8' \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
-  '-Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.EffectsOnlyPackageTest,com.snowglobe.overlay.SavedScenesTest#actualBillingSdkReportsServiceStateWithoutTelemetry,com.snowglobe.overlay.ChristmasMagicTest#pixelSetupAndChristmasScenesAreDiscoverable' \
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.EffectsOnlyPackageTest,com.snowglobe.overlay.SavedScenesTest#actualBillingSdkReportsServiceStateWithoutTelemetry,com.snowglobe.overlay.HolidayPlusUiTest#holidayPlusAndRestoreAreDiscoverableWithoutCharging,com.snowglobe.overlay.ChristmasMagicTest#pixelSetupAndChristmasScenesAreDiscoverable' \
   :app:connectedDebugAndroidTest --rerun 2>&1 | tee "$preflight_dir/gradle.log"
 preflight_pipeline=("${PIPESTATUS[@]}")
 set -e
