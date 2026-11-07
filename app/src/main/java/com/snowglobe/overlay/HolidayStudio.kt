@@ -2,6 +2,9 @@
 package com.snowglobe.overlay
 
 import android.os.Build
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -123,7 +126,8 @@ internal class HolidayActions(
                                         "Correct common spelling errors when you press Space. Backspace immediately after a correction to undo it.")
                                     HolidayToggle(prefs,state,actions,"Keypress haptics","keyboardHaptics",true,
                                         "Gentle tactile feedback when typing.")
-                                    Text("Christmas waves and key sparks stop with Reduce Motion or Battery Saver. Text correction runs on-device and is disabled for passwords or private input fields. This keyboard is not the proprietary Gboard engine and does not yet offer glide typing, voice input, full multilingual prediction or ML proofreading.",
+                                    OutlinedButton(onClick={sheet="privacy"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Keyboard privacy policy")}
+                                    Text("Local English suggestions and common-typo correction. Password fields have no suggestions or correction. RGB motion stops with Reduce Motion or Battery Saver. Glide typing, voice input and multilingual prediction are not available.",
                                         style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                                 item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
@@ -136,7 +140,7 @@ internal class HolidayActions(
                                     TextButton(onClick={sheet="saved"}){Text("My scenes")}
                                 }}
                                 item{HolidayScenes(prefs,state,actions)}
-                                item{HolidayCard("Touch-friendly mode","Top-edge effects are the default for better tap compatibility."){
+                                item{HolidayCard("Snow coverage","Full-screen snowfall is the default. Top-edge-only coverage is optional."){
                                     HolidayToggle(prefs,state,actions,"Limit snowfall to top edge (safer taps)","edgeOnly",false,
                                         "Keep the falling effects in the top quarter of the screen.")
                                     Text("Full-screen snowfall now covers the entire display again. Some secure app controls block touches through overlays; switch on top-edge-only mode or Pause effects before payment or login.",
@@ -170,6 +174,8 @@ internal class HolidayActions(
                                 }}
                                 item{HolidayCard("Snowfall","Choose your perfect winter flurry."){
                                     HolidayToggle(prefs,state,actions,"Falling snow","snow",true)
+                                    HolidayToggle(prefs,state,actions,"Limit snowfall to top edge","edgeOnly",false,
+                                        "Off: snow falls across the full display. On: restrict effects to the top quarter.")
                                     HolidaySlider(prefs,state,actions,"Speed","speed",50);HolidaySlider(prefs,state,actions,"Size","size",50);HolidaySlider(prefs,state,actions,"Amount","density",55)
                                     HolidayChoice(prefs,state,actions,"Crystal shape","snowStyle",listOf("Soft snow","Six-point crystal","Minimal crystal"),1)
                                 }}
@@ -215,7 +221,7 @@ internal class HolidayActions(
                 containerColor=colors.background,contentColor=colors.onBackground){
                 LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.92f).imePadding(),contentPadding=PaddingValues(20.dp,0.dp,20.dp,24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
                     item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                        Text(when(open){"appearance"->"Studio appearance";"saved"->"My Christmas scenes";"setup"->"Set up your Pixel";else->"Settings & safety"},
+                        Text(when(open){"appearance"->"Studio appearance";"saved"->"My Christmas scenes";"setup"->"Set up your Pixel";"privacy"->PrivacyPolicy.TITLE;else->"Settings & safety"},
                             modifier=Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
                         TextButton(onClick={sheet=null}){Text("Done")}
                     }}
@@ -227,7 +233,15 @@ internal class HolidayActions(
                         }
                         "saved"->{item{SavedHolidayScenes(scenes,state,actions)}}
                         "setup"->{item{PixelSetupGuide(prefs,state,actions)}}
+                        "privacy"->{
+                            PrivacyPolicy.paragraphs.forEach { paragraph -> item { Text(paragraph,style=MaterialTheme.typography.bodyMedium) } }
+                            item { OutlinedButton(onClick={
+                                try { context.startActivity(Intent(Intent.ACTION_VIEW,Uri.parse("https://github.com/Jclemente0411/snowglobe-overlay/issues"))) }
+                                catch (_:RuntimeException) { Toast.makeText(context,"Open github.com/Jclemente0411/snowglobe-overlay/issues in your browser.",Toast.LENGTH_LONG).show() }
+                            },modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Privacy questions & support")} }
+                        }
                         else->{
+                            item{OutlinedButton(onClick={sheet="privacy"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Privacy policy")}}
                             item{OutlinedButton(onClick={sheet="setup"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pixel setup guide")}}
                             item{HolidayCard("Safe taps & quick control","Pause before shopping or protected screens."){
                                 HolidayToggle(prefs,state,actions,"Top-edge-only effects (safer taps)","edgeOnly",false,
@@ -239,7 +253,7 @@ internal class HolidayActions(
                             item{HolidayCard("Lock-screen snowfall","Selected separately through Android."){
                                 Text(when{!state.lockCheckAvailable->"Check the selection in Android's wallpaper picker.";state.lockApplied->"Selected for the lock screen.";else->"Not yet selected for the lock screen."},color=colors.primary)
                                 Spacer(Modifier.height(8.dp))
-                                Text("Over-app snow cannot appear on the secure lock screen. For effects behind the clock, select SnowGlobe as the live wallpaper. This replaces your lock-screen picture; choose Lock screen or both when offered.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                Text("Over-app snow cannot appear on the secure lock screen. For effects behind the clock, select SnowGlobe as the live wallpaper. Android replaces the wallpaper on the screens you select. Available Home and Lock choices depend on the device.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 OutlinedButton(onClick=actions.wallpaper,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Set lock-screen wallpaper")}
                                 HolidayToggle(prefs,state,actions,"Snow on wallpaper","wallpaperSnow",true)
                                 HolidayToggle(prefs,state,actions,"Flurry when the screen wakes","wakeSnow",true)

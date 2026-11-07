@@ -5,7 +5,7 @@ public class AdaptiveMotionTest {
     @Test public void autoRespectsActualDisplayAndHeat(){
         assertEquals(30,RenderPolicy.fps(3,false,false,0,60));
         assertEquals(60,RenderPolicy.fps(3,false,false,0,120));
-        assertEquals(30,RenderPolicy.fps(3,false,false,0,75));
+        assertEquals(25,RenderPolicy.fps(3,false,false,0,75)); // Every third display refresh.
         assertEquals(30,RenderPolicy.fps(3,false,true,0,120));
         assertEquals(15,RenderPolicy.fps(3,false,false,4,120));
         assertEquals(30,RenderPolicy.fps(3,true,false,0,120));

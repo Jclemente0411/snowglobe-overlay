@@ -4,6 +4,7 @@ import android.app.*;
 import android.content.*;
 import android.content.pm.ServiceInfo;
 import android.graphics.PixelFormat;
+import android.hardware.display.DisplayManager;
 import android.hardware.input.InputManager;
 import android.os.*;
 import android.provider.Settings;
@@ -23,8 +24,10 @@ public class EffectsService extends Service {
     private static final Set<Object> studioOwners=Collections.newSetFromMap(new IdentityHashMap<>());
     private static EffectsService current;
     private SharedPreferences prefs;
+    private Context windowContext;
     private WindowManager manager;
-    private SnowView view;
+    private SnowView view, retainedView;
+    private WindowManager.LayoutParams overlayParams;
     private int attachedHeight=0;
     private boolean foregroundStarted, failed;
     private static boolean keyboardTyping=false;
@@ -84,7 +87,16 @@ public class EffectsService extends Service {
     }
     @Override public void onCreate(){
         super.onCreate(); current=this; prefs=getSharedPreferences("snowglobe",MODE_PRIVATE);
-        manager=getSystemService(WindowManager.class);
+        // A service context does not describe a particular window area. Keep one
+        // overlay window context so its metrics/resources follow display changes.
+        windowContext=this;
+        if(Build.VERSION.SDK_INT>=30){
+            DisplayManager displays=getSystemService(DisplayManager.class);
+            Display display=displays==null?null:displays.getDisplay(Display.DEFAULT_DISPLAY);
+            if(display!=null)windowContext=createDisplayContext(display)
+                .createWindowContext(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,null);
+        }
+        manager=windowContext.getSystemService(WindowManager.class);
         OverlayCoverageMigration.apply(prefs);
         prefs.registerOnSharedPreferenceChangeListener(settingsChanged);
         state("starting");
@@ -152,9 +164,15 @@ public class EffectsService extends Service {
         // Window geometry is what Android uses to classify obscured touches.
         // Restricting the overlay to the top band is an opt-in convenience, not a
         // bypass for protected payment controls.
-        int targetHeight=OverlayWindowPolicy.height(windowHeight(),getResources().getDisplayMetrics().density,
+        int targetHeight=OverlayWindowPolicy.height(windowHeight(),windowContext.getResources().getDisplayMetrics().density,
             prefs.getBoolean("edgeOnly",false));
-        if(view!=null&&attachedHeight!=targetHeight)detachOverlay();
+        if(view!=null&&attachedHeight!=targetHeight){
+            try{
+                overlayParams.height=targetHeight;
+                manager.updateViewLayout(view,overlayParams);
+                attachedHeight=targetHeight;
+            }catch(RuntimeException error){fail(error);return;}
+        }
         if(view==null){
             SnowView candidate=null;
             try{
@@ -162,13 +180,26 @@ public class EffectsService extends Service {
                 if(Build.VERSION.SDK_INT>=31){InputManager input=getSystemService(InputManager.class);if(input!=null)maximum=input.getMaximumObscuringOpacityForTouch();}
                 float alpha=OverlaySafetyPolicy.windowAlpha(maximum);
                 if(alpha<=0f)throw new IllegalStateException("Android does not permit a touch-through overlay");
-                candidate=new SnowView(getApplicationContext(),prefs);
+                // Keep cached sprites across a lock/unlock or Studio visit. A
+                // detached view has no frame callbacks, receiver or preference listener.
+                candidate=retainedView!=null?retainedView:new SnowView(windowContext,prefs);
+                candidate.setAnimating(true);
                 candidate.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
                 WindowManager.LayoutParams params=new WindowManager.LayoutParams(-1,targetHeight,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                     WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE|
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN|WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,PixelFormat.TRANSLUCENT);
                 params.gravity=Gravity.TOP|Gravity.START;params.alpha=alpha;params.setTitle("SnowGlobe visual effects");
-                manager.addView(candidate,params);view=candidate;attachedHeight=targetHeight;
+                // The IME covers the lower scene without resizing its coordinate
+                // space. System bars/cutouts likewise must not crop the snow canvas.
+                params.softInputMode=WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING;
+                if(Build.VERSION.SDK_INT>=30){
+                    params.setFitInsetsTypes(0);
+                    params.layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+                }else if(Build.VERSION.SDK_INT>=28){
+                    params.layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+                }
+                manager.addView(candidate,params);view=candidate;retainedView=candidate;
+                overlayParams=params;attachedHeight=targetHeight;
                 candidate.setKeyboardTyping(keyboardTyping);
             }catch(RuntimeException error){
                 if(candidate!=null)try{manager.removeViewImmediate(candidate);}catch(RuntimeException ignored){}
@@ -182,14 +213,14 @@ public class EffectsService extends Service {
             android.view.WindowMetrics metrics=manager.getCurrentWindowMetrics();
             if(metrics!=null)return metrics.getBounds().height();
         }
-        return getResources().getDisplayMetrics().heightPixels;
+        return windowContext.getResources().getDisplayMetrics().heightPixels;
     }
     private void fail(RuntimeException error){
         cancelUnlockChecks();
         Log.e("SnowGlobeEffects","Overlay stopped safely",error);failed=true;detachOverlay();state("error");stopSelf();
     }
     private void detachOverlay(){
-        SnowView old=view;view=null;attachedHeight=0;
+        SnowView old=view;view=null;overlayParams=null;attachedHeight=0;
         if(old!=null){old.setAnimating(false);try{manager.removeViewImmediate(old);}catch(RuntimeException ignored){}}
     }
     @Override public void onDestroy(){
@@ -197,7 +228,7 @@ public class EffectsService extends Service {
         MAIN.removeCallbacks(reconcileTask);
         if(prefs!=null)prefs.unregisterOnSharedPreferenceChangeListener(settingsChanged);
         try{unregisterReceiver(screenChanges);}catch(IllegalArgumentException ignored){}
-        detachOverlay();foregroundStarted=false;stopForeground(STOP_FOREGROUND_REMOVE);
+        detachOverlay();retainedView=null;foregroundStarted=false;stopForeground(STOP_FOREGROUND_REMOVE);
         if(prefs!=null&&!failed&&!"permission_required".equals(prefs.getString("_serviceState","")))state(prefs.getBoolean("effectsEnabled",true)?"stopped":"paused");
         if(current==this)current=null;super.onDestroy();
     }

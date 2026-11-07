@@ -165,34 +165,24 @@ public final class KeyboardDictionary {
         }
     }
     private KeyboardDictionary(){}
+    /** Initialize immutable vocabulary before the first key press. */
+    static void warmUp(){}
 
     public static boolean isKnown(String word){
         if(word==null)return false;
         return ranks.containsKey(word.toLowerCase(Locale.ROOT));
     }
-    /** Only strong corrections: common explicit typos or a one-edit frequent candidate. */
+    /** Automatic replacement is limited to explicit typos; this small corpus cannot judge unknown words. */
     public static String correct(String raw){
         if(raw==null||raw.length()<2||raw.length()>22)return raw;
         String lower=raw.toLowerCase(Locale.ROOT);
-        // Explicit high-confidence typos outrank raw corpus words such as "dont".
-        // Do not auto-rewrite ambiguous correct English words such as "its".
+        // Preserve mixed-case names and identifiers rather than flattening their capitalization.
+        if(!raw.equals(lower)&&!raw.equals(raw.toUpperCase(Locale.ROOT))&&
+            !(Character.isUpperCase(raw.charAt(0))&&raw.substring(1).equals(lower.substring(1))))return raw;
         String direct=knownTypos.get(lower);
-        if(direct!=null&&!"its".equals(lower)&&!"colours".equals(lower))
-            return matchCase(raw,direct);
-        if(isKnown(lower))return raw;
-        if(raw.length()<3)return raw;
-        String candidate=null;int best=Integer.MAX_VALUE;
-        for(Map.Entry<String,Integer> entry:ranks.entrySet()){
-            String word=entry.getKey();
-            if(word.indexOf((char)39)>=0||Math.abs(word.length()-lower.length())>1)continue;
-            int distance=distanceOne(lower,word);
-            if(distance!=1)continue;
-            int score=entry.getValue();
-            // Restrict generic automatic replacements to high-frequency words.
-            if(score>200)continue;
-            if(score<best){candidate=word;best=score;}
-        }
-        return candidate==null?raw:matchCase(raw,candidate);
+        // These spellings can be intentional words, not misspellings.
+        if(direct==null||"its".equals(lower)||"colours".equals(lower)||"pleas".equals(lower))return raw;
+        return matchCase(raw,direct);
     }
     private static String matchCase(String original,String corrected){
         if(original.equals(original.toUpperCase(Locale.ROOT)))return corrected.toUpperCase(Locale.ROOT);

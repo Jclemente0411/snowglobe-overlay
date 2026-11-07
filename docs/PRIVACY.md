@@ -1,0 +1,39 @@
+# SnowGlobe privacy policy
+
+Updated November 6, 2026. Publisher: Jclemente0411. This policy covers the SnowGlobe Android app (com.snowglobe.overlay), including its optional holiday overlay, live wallpaper and Christmas keyboard.
+
+## Keyboard input
+
+When you enable and select the SnowGlobe keyboard, it processes your keystrokes, the current selection and limited surrounding text supplied by the active text field to enter or edit text and provide local suggestions and autocorrection. It passes the text you enter to the app you are typing in. That app controls how it stores, uses or transmits that text under its own policy.
+
+## Typing privacy
+
+The keyboard uses a bundled dictionary and temporary memory for the current word and correction state. It does not save a keystroke history, learn a personal dictionary or log typed text. Temporary typing state is discarded when the input session finishes. Suggestions and autocorrection are disabled for fields identified by Android as passwords or requesting no personalized learning. SnowGlobe does not transmit your typed text to the publisher or to a server.
+
+## Local settings and diagnostics
+
+SnowGlobe saves appearance and keyboard preferences, your saved scene names and settings, and whether you enabled effects in private app storage. It also keeps limited local status information, such as service state, render or wake timestamps and error messages, to show setup status and diagnose failures. The app does not automatically upload these records. Keyboard input is not included in these diagnostic records.
+
+## Optional permissions
+
+Display over other apps lets SnowGlobe draw decorations over supported screens; it does not let SnowGlobe read those screens or your notifications. A foreground service and notification support ongoing effects and a pause control. Boot and app-update events can restore effects you previously enabled when Android permits. Android separately controls selection of the live wallpaper and keyboard. You can pause effects or revoke these choices in Android settings. SnowGlobe does not request access to contacts, location, camera or microphone.
+
+## Network, accounts and purchases
+
+This build has no Internet permission, app-operated server, account sign-in, advertising, analytics SDK, automatic crash-reporting SDK, in-app purchases or billing integration. SnowGlobe does not sell personal data or send app usage or keyboard data to advertising or analytics providers. Opening an external link uses your browser or another app and is governed by that service's policy.
+
+## Android backup and security
+
+Local preferences and saved scenes use Android's private app storage. Android may back up or transfer this app data through your configured backup provider or device-transfer settings. Such backups may include scene names and local diagnostic preferences; they do not include a keyboard typing history because SnowGlobe does not save one. The publisher does not operate or receive those backups. Android, Google Play and your backup provider handle their own backup, installation and system diagnostic information under their settings and policies.
+
+## Retention and deletion
+
+Local settings, saved scenes and diagnostic preferences remain until you replace or delete them, clear SnowGlobe's app storage in Android settings, or uninstall the app. A saved scene can also be deleted in SnowGlobe. Clearing local storage or uninstalling may not remove a backup already held by Android or your backup provider, and a later reinstall or device transfer may restore backed-up settings. Manage those backups through your device and provider settings. There is no SnowGlobe account or developer-held keyboard history to delete.
+
+## Privacy inquiries
+
+Contact the publisher through https://github.com/Jclemente0411/snowglobe-overlay/issues. The publisher uses information you choose to provide there to respond to your question or investigate a problem. GitHub issues are public, so omit private typed content, passwords and other sensitive information. GitHub hosts those reports under its own privacy policy and retention controls.
+
+## Policy updates
+
+Changes to the app's data practices will be reflected in this policy and the in-app policy text with an updated date. This policy describes the current build; any future networking, purchases or other data-handling features must be reflected before they are released.

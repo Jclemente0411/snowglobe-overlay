@@ -11,7 +11,7 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     private final SharedPreferences preferences;
     private final SceneRenderer renderer;
     private final RenderPowerMonitor power;
-    private boolean posted=false,enabled=true,preview=false,reloadQueued=false,keyboardTyping=false;
+    private boolean posted=false,enabled=true,preview=false,reloadQueued=false,keyboardTyping=false,imeVisible=false;
     private long presented=0L;
     private final Runnable reloadTask=()->{reloadQueued=false;reload();};
     private final SharedPreferences.OnSharedPreferenceChangeListener changes=(p,key)->{
@@ -30,7 +30,9 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     public void setKeyboardTyping(boolean typing){
         if(keyboardTyping==typing)return;
         keyboardTyping=typing;
+        renderer.setTypingBudget(keyboardTyping||imeVisible);
         cancel();
+        invalidate();
         updateSchedule();
     }
     public void refresh(){reload();}
@@ -38,9 +40,23 @@ public class SnowView extends View implements Choreographer.FrameCallback {
         renderer.apply(new SceneSettings(preferences));power.read();resizeScene();invalidate();updateSchedule();
     }
     @Override public void onAttachedToWindow(){super.onAttachedToWindow();preferences.registerOnSharedPreferenceChangeListener(changes);power.attach();reload();}
-    @Override public void onDetachedFromWindow(){cancel();removeCallbacks(reloadTask);reloadQueued=false;preferences.unregisterOnSharedPreferenceChangeListener(changes);power.close();super.onDetachedFromWindow();}
+    @Override public void onDetachedFromWindow(){
+        cancel();removeCallbacks(reloadTask);reloadQueued=false;
+        imeVisible=false;renderer.setTypingBudget(keyboardTyping);
+        preferences.unregisterOnSharedPreferenceChangeListener(changes);power.close();super.onDetachedFromWindow();
+    }
     @Override protected void onSizeChanged(int w,int h,int ow,int oh){super.onSizeChanged(w,h,ow,oh);resizeScene();}
-    @Override public WindowInsets onApplyWindowInsets(WindowInsets insets){WindowInsets result=super.onApplyWindowInsets(insets);resizeScene();return result;}
+    @Override public WindowInsets onApplyWindowInsets(WindowInsets insets){
+        WindowInsets result=super.onApplyWindowInsets(insets);
+        if(Build.VERSION.SDK_INT>=30){
+            boolean visible=insets.isVisible(WindowInsets.Type.ime());
+            if(imeVisible!=visible){
+                imeVisible=visible;renderer.setTypingBudget(keyboardTyping||imeVisible);
+                cancel();invalidate();updateSchedule();
+            }
+        }
+        resizeScene();return result;
+    }
     private void resizeScene(){
         if(renderer==null)return;
         float top=0,bottom=0;WindowInsets insets=getRootWindowInsets();
@@ -56,8 +72,8 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);if(renderer!=null)updateSchedule();}
     private boolean visible(){return enabled&&powerInteractive()&&isAttachedToWindow()&&isShown()&&getWindowVisibility()==VISIBLE;}
     private int fps(){Display display=getDisplay();float hz=display==null?60f:display.getRefreshRate();
-        int desired=RenderPolicy.fps(renderer.settings().quality,preview,power.powerSaver,power.thermal,hz);
-        return keyboardTyping?Math.min(desired,20):desired;}
+        int quality=keyboardTyping||imeVisible?0:renderer.settings().quality;
+        return RenderPolicy.fps(quality,preview,power.powerSaver,power.thermal,hz);}
     private void updateSchedule(){
         if(!visible()){cancel();return;}
         if(!posted&&renderer.animated()){

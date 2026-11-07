@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
             {actions.enable(!EffectsService.isActive())})
         SetupStep("02","Snow on your lock screen",
             PixelSetupStatus.wallpaper(state.lockCheckAvailable,state.lockApplied),
-            "Snow over apps cannot cover the secure lock screen. For snow behind the clock, choose SnowGlobe from the live wallpaper picker. This replaces your lock-screen picture, but leaves fingerprint controls to Android.",
+            "Snow over apps cannot cover the secure lock screen. For snow behind the clock, choose SnowGlobe from the live wallpaper picker. Android replaces the wallpaper on the screens you select; available Home and Lock choices depend on the device. Fingerprint controls stay with Android.",
             "Open wallpaper picker",actions.wallpaper)
         SetupStep("03","Your control-panel switch",
             PixelSetupStatus.quickTile(),

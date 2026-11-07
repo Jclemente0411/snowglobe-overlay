@@ -8,11 +8,15 @@ public final class RenderPolicy {
     }
     /** Auto mode uses a conservative cap based on the actual screen, not an assumed Pixel refresh rate. */
     public static int fps(int quality, boolean preview, boolean powerSaver, int thermal, float displayHz) {
-        int result=quality<=0?30:quality==1?60:quality==3?(displayHz>=90f?60:30):120;
+        float hz=Float.isFinite(displayHz)&&displayHz>=30f?displayHz:60f;
+        int result=quality<=0?30:quality==1?60:quality==3?(hz>=90f?60:30):120;
         if(preview)result=Math.min(result,30);
         if(powerSaver||thermal>=2)result=Math.min(result,30);
         if(thermal>=4)result=Math.min(result,15);
-        return result;
+        // Use a whole number of display refreshes per scene frame. For example,
+        // 45 FPS on a 90 Hz screen has steady pacing; requesting 60 cannot.
+        int cadence=Math.max(1,(int)Math.ceil(hz/result-.01f));
+        return Math.max(1,Math.min(result,(int)Math.ceil(hz/cadence)));
     }
     public static long delayMillis(long presented,long now,int fps,float displayHz) {
         if(presented<=0||now<presented||fps<=0)return 0;

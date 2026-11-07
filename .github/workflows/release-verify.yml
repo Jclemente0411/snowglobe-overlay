@@ -1,0 +1,157 @@
+name: SnowGlobe release verification and signed AAB
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, fix/ship-readiness-0216]
+    paths-ignore: ['docs/**', 'README.md']
+  pull_request:
+    branches: [main]
+    paths-ignore: ['docs/**', 'README.md']
+permissions:
+  contents: read
+concurrency:
+  group: snowglobe-release-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: Android ${{ matrix.android }} tests and screenshots
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - android: '15'
+            api: '35'
+          - android: '17'
+            api: '37.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Release verifier regressions
+        run: python3 -B -m unittest discover -s scripts/tests -v
+      - name: JVM regressions, lint and test compilation
+        run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :tap-probe:assembleDebug
+      - name: Enable emulator acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Real window, input, overlay and UI tests
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          EXPECTED_ANDROID_API: ${{ matrix.api }}
+        with:
+          api-level: ${{ matrix.api }}
+          system-image-api-level: ${{ matrix.api }}
+          channel: stable
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disk-size: 4096M
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 900
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/run_device_checks.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SnowGlobe-android-${{ matrix.android }}-evidence-${{ github.run_number }}
+          path: |
+            app/build/reports/
+            app/build/outputs/androidTest-results/
+            qa-screenshots/
+          retention-days: 14
+  bundle:
+    name: Existing-key signed and verified Google Play bundle
+    if: github.event_name != 'pull_request' && needs.quality.result == 'success'
+    needs: quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Restore existing upload key
+        env:
+          KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          for key in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            test -n "${!key}" || { echo "::error::Missing existing upload secret: $key"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upload-key.jks"
+          test -s "$RUNNER_TEMP/upload-key.jks"
+      - name: Build signed release and lint
+        env:
+          PLAY_STORE_FILE: ${{ runner.temp }}/upload-key.jks
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: gradle --no-daemon :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata
+      - name: Ensure 16 KB APK verifier is available
+        run: sdkmanager "build-tools;36.0.0"
+      - name: Verify signature, bundle metadata and 16 KB libraries
+        env:
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          test -s "$AAB"
+          mkdir -p release
+          unzip -t "$AAB" > release/archive-validation.txt
+          jarsigner -J-Duser.language=en -verify -strict -keystore "$RUNNER_TEMP/upload-key.jks" -storepass:env PLAY_STORE_PASSWORD "$AAB" "$PLAY_KEY_ALIAS" > release/signature-check.txt
+          grep -q 'jar verified' release/signature-check.txt
+          keytool -J-Duser.language=en -printcert -jarfile "$AAB" > release/upload-certificate.txt
+          curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle="$AAB" > release/bundle-validation.txt
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" --module=base > release/AndroidManifest.xml
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump config --bundle="$AAB" > release/bundle-config.json
+          python3 scripts/verify_bundle.py app/build/reports/release-metadata.json release/AndroidManifest.xml
+          python3 scripts/verify_native_libraries.py "$AAB" release/bundle-config.json > release/native-alignment.txt
+          python3 - <<'PY'
+          import json
+          m=json.load(open('app/build/reports/release-metadata.json'))
+          assert m=={'applicationId':'com.snowglobe.overlay','versionCode':100028,'versionName':'0.21.6','targetSdk':36}
+          PY
+          # bundletool accepts pass: or file:, not apksigner's env: syntax.
+          # Keep passwords out of process arguments and remove the files on every exit.
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"' EXIT
+          printf '%s\n' "$PLAY_STORE_PASSWORD" > "$RUNNER_TEMP/store-pass.txt"
+          printf '%s\n' "$PLAY_KEY_PASSWORD" > "$RUNNER_TEMP/key-pass.txt"
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$AAB" --output="$RUNNER_TEMP/release.apks" --mode=universal --ks="$RUNNER_TEMP/upload-key.jks" --ks-key-alias="$PLAY_KEY_ALIAS" --ks-pass="file:$RUNNER_TEMP/store-pass.txt" --key-pass="file:$RUNNER_TEMP/key-pass.txt"
+          unzip -p "$RUNNER_TEMP/release.apks" universal.apk > "$RUNNER_TEMP/universal.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$RUNNER_TEMP/universal.apk" > release/apk-alignment.txt
+          cp "$AAB" release/SnowGlobe-0.21.6-build100028.aab
+          cp app/build/reports/release-metadata.json release/
+          git rev-parse HEAD > release/source-commit.txt
+          cd release
+          sha256sum *.aab > SHA256SUMS.txt
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SnowGlobe-0216-signed-AAB-${{ github.run_number }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 14

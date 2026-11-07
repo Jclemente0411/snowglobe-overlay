@@ -86,10 +86,15 @@ class StudioActivity:ComponentActivity(){
         else startWhenAllowed()
     }
     private fun keyboardSettings(){
-        startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        try { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
+        catch (_:RuntimeException) { setupError="Open Android Settings, then System > Keyboard > On-screen keyboard to enable SnowGlobe." }
     }
     private fun keyboardPicker(){
-        getSystemService(InputMethodManager::class.java)?.showInputMethodPicker()
+        try {
+            val manager=getSystemService(InputMethodManager::class.java)
+            if(manager!=null) manager.showInputMethodPicker()
+            else setupError="Choose SnowGlobe from Android's keyboard switcher."
+        } catch (_:RuntimeException) { setupError="Choose SnowGlobe from Android's keyboard switcher or keyboard settings." }
     }
     private fun openPlaySafely(){
         EffectsService.pauseNow(this);revision++

@@ -17,6 +17,10 @@ public class KeyboardDictionaryTest {
         assertEquals("snowglobe",KeyboardDictionary.correct("snowglobe"));
         assertEquals("nasa",KeyboardDictionary.correct("nasa"));
     }
+    @Test public void smallVocabularyMustNotRewriteValidUnknownWordsOrMixedCaseNames(){
+        for(String word:new String[]{"eat","art","met","ham","gel","bill","Ted","pleas","colours","iPhone","eBay","tEh"})
+            assertEquals("Preserve intentional spelling: "+word,word,KeyboardDictionary.correct(word));
+    }
     @Test public void showSuggestionsWithoutAutoReplacingTypedWord(){
         assertFalse(KeyboardDictionary.suggest("hel").isEmpty());
         assertEquals("hel",KeyboardDictionary.suggest("hel").get(0));

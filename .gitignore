@@ -4,3 +4,15 @@
 /local.properties
 *.iml
 .idea/
+
+.kotlin/
+/tap-probe/build/
+/qa-screenshots/
+/release/
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.log
+__pycache__/
+*.py[cod]

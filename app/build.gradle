@@ -10,8 +10,8 @@ android {
         applicationId 'com.snowglobe.overlay'
         minSdk 26
         targetSdk 36
-        versionCode 100027
-        versionName '0.21.5'
+        versionCode 100028
+        versionName '0.21.6'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildFeatures { compose true; buildConfig true }
@@ -27,8 +27,20 @@ android {
             }
         }
     }
-    buildTypes { release { signingConfig signingConfigs.release; minifyEnabled false } }
-    testOptions { animationsDisabled false }
+    buildTypes {
+        release {
+            // A local release can be inspected unsigned; publishing requires the existing upload key.
+            if (System.getenv('PLAY_STORE_FILE')) signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+    testOptions {
+        animationsDisabled false
+        unitTests.includeAndroidResources = true
+        unitTests.all {
+            systemProperty 'robolectric.dependency.repo.url', 'https://repo.maven.apache.org/maven2'
+        }
+    }
 }
 dependencies {
     implementation platform('androidx.compose:compose-bom:2025.05.01')
@@ -40,6 +52,7 @@ dependencies {
     // Preserve the compiled 0.15 Expressive dependency; no unrelated framework upgrade.
     implementation 'androidx.compose.material3:material3:1.5.0-alpha01'
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.robolectric:robolectric:4.16.1'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test:core:1.6.1'
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'

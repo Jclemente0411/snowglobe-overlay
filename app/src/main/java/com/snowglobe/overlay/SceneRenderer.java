@@ -26,7 +26,7 @@ public final class SceneRenderer {
     private float density,width=1,height=1,top=0,bottom=0,time=0,wake=0;
     private int palette=-1,shape=-1,lightCount=0;
     private long last=0;
-    private boolean wallpaper=false;
+    private boolean wallpaper=false,typingBudget=false;
 
     public SceneRenderer(float density,SceneSettings settings) {
         this.density=Math.max(0.5f,density);
@@ -43,6 +43,8 @@ public final class SceneRenderer {
     }
     public SceneSettings settings(){return settings;}
     public void setWallpaper(boolean value){wallpaper=value;}
+    /** Bound overlay work while preserving particles throughout the full canvas. */
+    public void setTypingBudget(boolean value){typingBudget=value;}
     public void resize(int w,int h,float safeTop,float safeBottom,float pixelDensity) {
         float d=Math.max(.5f,pixelDensity);
         if(width==w&&height==h&&top==safeTop&&bottom==safeBottom&&density==d)return;
@@ -54,7 +56,13 @@ public final class SceneRenderer {
     }
     public void resetClock(){last=0;}
     public void wake(){resetClock();if(settings.wakeSnow&&settings.snowVisibility>0&&!settings.reduced){wake=3f;for(int i=0;i<16;i++){y[i]=random.nextFloat()*.35f;x[i]=random.nextFloat();}}}
-    public boolean animated(){return wake>0||hasBurst()||settings.animated(wallpaper);}
+    public boolean animated(){
+        // A sparkle-only scene is stationary while typing; do not keep scheduling
+        // invisible glints. Snow and strand animation still use their bounded budget.
+        return wake>0||hasBurst()||!settings.reduced&&(activeParticles()>0
+            ||settings.lights&&settings.motion!=0&&settings.brightness>0
+            ||!typingBudget&&settings.sparks&&settings.sparkDensity>0);
+    }
     private boolean hasBurst(){for(float a:ba)if(a<2.2f)return true;return false;}
     public void touch(float px,float py) {
         if(settings.reduced)return;
@@ -80,8 +88,9 @@ public final class SceneRenderer {
         boolean decorationVisible=settings.decorations.length>0;
         boolean wallpaperSnow=wallpaper&&settings.wallpaperSnow&&settings.snowVisibility>0f;
         boolean wakeSnow=wallpaper&&wake>0&&settings.snowVisibility>0f;
-        return SnowVisualPolicy.particleCount(settings.count,snowVisible,decorationVisible,
+        int count=SnowVisualPolicy.particleCount(settings.count,snowVisible,decorationVisible,
             wallpaperSnow,wakeSnow,settings.edgeOnly&&!wallpaper);
+        return typingBudget?Math.min(count,36):count;
     }
     public void advance(long frameNanos) {
         float dt=MotionMath.seconds(last,frameNanos);last=frameNanos;time+=dt;wake=Math.max(0,wake-dt);
@@ -95,7 +104,7 @@ public final class SceneRenderer {
             angle[i]=(angle[i]+spin[i]*settings.spin*dt*(settings.gentle?.6f:1f)+360)%360;
             if(x[i]<-dp(40)/width||x[i]>1+dp(40)/width||y[i]<-dp(40)/height||y[i]>1+dp(40)/height)reset(i,false);
         }
-        if(settings.sparks)for(int i=0;i<GLINTS;i++){ga[i]+=dt;if(ga[i]>gl[i]+2f){newGlint(i);ga[i]=-random.nextFloat()*2.5f;}}
+        if(settings.sparks&&!typingBudget)for(int i=0;i<GLINTS;i++){ga[i]+=dt;if(ga[i]>gl[i]+2f){newGlint(i);ga[i]=-random.nextFloat()*2.5f;}}
         for(int i=0;i<BURSTS;i++)if(ba[i]<2.2f){ba[i]+=dt;bx[i]+=bvX[i]*dt;by[i]+=bvY[i]*dt;bvY[i]+=dp(12)*dt;}
     }
     private void fill(int color,int alpha){ink.setShader(null);ink.setStyle(Paint.Style.FILL);ink.setColor(color);ink.setAlpha(Math.max(0,Math.min(255,alpha)));}
@@ -219,7 +228,7 @@ public final class SceneRenderer {
             for(int i=0;i<lightCount;i++)drawBulb(c,lightX[i],lightY[i],dp(.58f)*settings.bulbSize,lightAngle[i],i,
                 settings.brightness*MotionMath.brightness(settings.motion,time,i,settings.tempo,settings.reduced),1);
         }
-        if(settings.sparks&&!settings.reduced){int n=Math.round(GLINTS*settings.sparkDensity);
+        if(settings.sparks&&!settings.reduced&&!typingBudget){int n=Math.round(GLINTS*settings.sparkDensity);
             for(int i=0;i<n;i++){float a=MotionMath.envelope(ga[i],gl[i]);if(a<.01f)continue;
                 float py=top+dp(42)+gy[i]*Math.max(1,height-top-bottom-dp(90));
                 if(i%3!=0)drawBulb(c,gx[i]*width,py,dp(.45f),-12+i*3,i,settings.brightness,a*.85f);
