@@ -2,9 +2,9 @@
 
 SnowGlobe is an Android holiday effects app with an optional full-screen overlay, system-selected live wallpaper, and a local English Christmas RGB keyboard. Package: `com.snowglobe.overlay`.
 
-## Current candidate
+## Current release build
 
-Version **0.21.6**, version code **100028**, minimum SDK 26 and target SDK 36. This is a release candidate, not a statement of Play approval or verified Gboard equivalence. See [release readiness](docs/RELEASE_READINESS_0216.md) for observed results and outstanding gates.
+The signed **0.21.6 / 100028** AAB is verified and ready for Google Play upload, with minimum SDK 26 and target SDK 36. [Release run 42327417503](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42327417503) passed all three CI jobs: 131 host tests, 35 script regressions, two separate preflight cases and all 50 full-suite device tests on each of Android 15 and Android 17, followed by signed-bundle verification. See [release readiness](docs/RELEASE_READINESS_0216.md) for the exact artifact, source, checksum and upload certificate. Google Play submission/approval, physical Pixel acceptance and complete Gboard equivalence have not been established.
 
 The keyboard uses a custom Android `InputMethodService` and Canvas view. It offers tap typing, local word suggestions, conservative known-typo correction, RGB themes, adjustable height, two-thumb tap ordering, spacebar cursor movement, a small local emoji palette, and accessible virtual keys. Glide typing, voice input, full multilingual prediction, a clipboard manager and Gboard's proprietary language models are not implemented. All current features remain unlocked; the proposed premium purchase flow is not implemented.
 
