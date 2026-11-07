@@ -186,7 +186,7 @@ jobs:
           python3 - <<'PY'
           import json
           m=json.load(open('app/build/reports/release-metadata.json'))
-          expected={'applicationId':'com.snowglobe.overlay','versionCode':100029,'versionName':'0.22.0','targetSdk':36}
+          expected={'applicationId':'com.snowglobe.overlay','versionCode':100030,'versionName':'0.22.1','targetSdk':36}
           for key,value in expected.items():
               if m.get(key)!=value: raise SystemExit('Wrong release metadata: '+key)
           if m.get('billingProductId')!='holiday_plus_lifetime': raise SystemExit('Wrong Holiday Plus product')
@@ -204,7 +204,7 @@ jobs:
           java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$AAB" --output="$RUNNER_TEMP/release.apks" --mode=universal --ks="$RUNNER_TEMP/upload-key.jks" --ks-key-alias="$PLAY_KEY_ALIAS" --ks-pass="file:$RUNNER_TEMP/store-pass.txt" --key-pass="file:$RUNNER_TEMP/key-pass.txt"
           unzip -p "$RUNNER_TEMP/release.apks" universal.apk > "$RUNNER_TEMP/universal.apk"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$RUNNER_TEMP/universal.apk" > release/apk-alignment.txt
-          cp "$AAB" release/SnowGlobe-0.22.0-build100029.aab
+          cp "$AAB" release/SnowGlobe-0.22.1-build100030.aab
           cp app/build/reports/release-metadata.json release/
           git rev-parse HEAD > release/source-commit.txt
           cd release
@@ -214,7 +214,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/upload-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: SnowGlobe-0220-signed-AAB-${{ github.run_number }}-${{ github.run_attempt }}
+          name: SnowGlobe-0221-signed-AAB-${{ github.run_number }}-${{ github.run_attempt }}
           path: release/
           if-no-files-found: error
           retention-days: 14
