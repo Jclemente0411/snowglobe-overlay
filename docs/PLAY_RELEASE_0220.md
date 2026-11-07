@@ -1,5 +1,11 @@
 # SnowGlobe 0.22.0 Play handoff
 
+## Verified release download
+
+[Download SnowGlobe-0220-signed-AAB-18-1.zip](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42393453546/artifacts/13583285949), extract it, and upload **SnowGlobe-0.22.0-build100029.aab** to the existing `com.snowglobe.overlay` listing. The ZIP also contains the checksum, source identity and verification reports. Save it before the artifact expires on November 21, 2026.
+
+[Run 42393453546](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42393453546) passed both complete Android suites and existing-key signing/bundle checks for source `914164b561dc761f501e59df026b4490c738ad2c`. This is the free release: its signed-build log records `commerceConfigured: false`. Holiday Plus checkout requires the separately documented configuration and a new build. Read the [final release audit](RELEASE_READINESS_0220.md), including the workspace interruption and remaining account/physical-device limits.
+
 ## Release notes
 
 A fresh focus on winter magic:

@@ -2,6 +2,10 @@
 
 Prepared November 7, 2026. This is the existing app's one-time upgrade, not a second app. The billing implementation is present in 0.22.0; Console activation and real purchase testing must be separately observed before paid-launch readiness is claimed.
 
+## Current signed-build status
+
+The final 0.22.0 / 100029 signed build from [run 42393453546](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42393453546), source `914164b561dc761f501e59df026b4490c738ad2c`, passed the technical release gates. Its completed log explicitly records **`commerceConfigured: false` / `commerce-not-configured`**. The free app is available in that AAB; the $2.99 checkout remains disabled. Complete the configuration and real-transaction steps below, then build a higher version code if 100029 has already been used.
+
 ## Exact product
 
 | Field | Value |
