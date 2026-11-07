@@ -1,0 +1,141 @@
+name: SnowGlobe signed release upgrade diagnostic
+on:
+  push:
+    branches: [diagnostics/upgrade-100028-100029-20261107]
+    paths:
+      - '.github/workflows/verify-upgrade-0216-0220.yml'
+      - 'scripts/verify_release_upgrade.sh'
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: snowglobe-upgrade-100028-100029-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  upgrade:
+    name: Existing 0.21.6 to 0.22.0 release upgrade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Prepare bounded diagnostic directories
+        run: |
+          set -euo pipefail
+          mkdir -p upgrade-evidence "$RUNNER_TEMP/snowglobe-upgrade"
+          echo "UPGRADE_ROOT=$RUNNER_TEMP/snowglobe-upgrade" >> "$GITHUB_ENV"
+      - uses: actions/download-artifact@v4
+        with:
+          name: SnowGlobe-0216-signed-AAB-7-1
+          run-id: 42327417503
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/snowglobe-upgrade/old
+      - uses: actions/download-artifact@v4
+        with:
+          name: SnowGlobe-0220-signed-AAB-18-1
+          run-id: 42393453546
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/snowglobe-upgrade/new
+      - name: Restore existing test-signing material and pinned bundletool
+        env:
+          KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            test -n "${!name}" || { echo "::error::Missing existing upload secret: $name"; exit 1; }
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upload-key.jks"
+          printf '%s\n' "$STORE_PASSWORD" > "$RUNNER_TEMP/store-pass.txt"
+          printf '%s\n' "$KEY_PASSWORD" > "$RUNNER_TEMP/key-pass.txt"
+          curl --fail --location --silent --show-error --max-time 120 https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          printf '%s  %s\n' '675786493983787ffa11550bdb7c0715679a44e1643f3ff980a529e9c822595c' "$RUNNER_TEMP/bundletool.jar" | sha256sum --check --strict
+      - name: Verify exact historical release payloads and signatures
+        env:
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess, zipfile
+          root = pathlib.Path(os.environ['UPGRADE_ROOT'])
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          evidence = pathlib.Path('upgrade-evidence')
+          pin = '73:45:EE:F8:97:0F:7F:8D:E6:20:BB:F7:C0:4B:28:03:0D:F9:C2:F7:A1:D6:8B:68:E5:E0:72:C1:04:8F:48:A4'
+          releases = [
+              ('old', '0.21.6', 100028, 'cdc1be36a049c807623babe08784b5ad362c4756', 'bb5c88a8a55607c1b9083f03e32771c50094055df72b7ae4772a145f33742c77'),
+              ('new', '0.22.0', 100029, '914164b561dc761f501e59df026b4490c738ad2c', '226e92d2121d5a3cd6934b22e00fec7449643d11e50d298d4e26ef8ac126681b'),
+          ]
+          verified = []
+          for label, version, code, source, digest in releases:
+              folder = root / label
+              files = list(folder.rglob('*.aab'))
+              if len(files) != 1:
+                  raise SystemExit('Expected exactly one AAB: ' + label)
+              aab = files[0]
+              if hashlib.sha256(aab.read_bytes()).hexdigest() != digest:
+                  raise SystemExit('Wrong release AAB bytes: ' + label)
+              if (folder / 'source-commit.txt').read_text().strip() != source:
+                  raise SystemExit('Wrong historical source: ' + label)
+              metadata = json.loads((folder / 'release-metadata.json').read_text())
+              expected = {'applicationId':'com.snowglobe.overlay', 'versionName':version, 'versionCode':code, 'targetSdk':36}
+              if any(metadata.get(key) != value for key, value in expected.items()):
+                  raise SystemExit('Wrong historical release metadata: ' + label)
+              with zipfile.ZipFile(aab) as archive:
+                  if archive.testzip() is not None:
+                      raise SystemExit('Corrupt AAB: ' + label)
+              with (evidence / (label + '-signature.txt')).open('w') as log:
+                  subprocess.run(['jarsigner', '-J-Duser.language=en', '-verify', '-strict', '-keystore', str(temp/'upload-key.jks'), '-storepass:env', 'PLAY_STORE_PASSWORD', str(aab), os.environ['PLAY_KEY_ALIAS']], check=True, stdout=log, stderr=subprocess.STDOUT, timeout=60)
+              cert = subprocess.run(['keytool', '-J-Duser.language=en', '-printcert', '-jarfile', str(aab)], check=True, capture_output=True, text=True, timeout=30).stdout
+              (evidence / (label + '-upload-certificate.txt')).write_text(cert)
+              if pin.lower() not in cert.lower():
+                  raise SystemExit('Historical upload certificate changed: ' + label)
+              with (evidence / (label + '-bundle-validation.txt')).open('w') as log:
+                  subprocess.run(['java', '-jar', str(temp/'bundletool.jar'), 'validate', '--bundle='+str(aab)], check=True, stdout=log, stderr=subprocess.STDOUT, timeout=60)
+              verified.append({'label':label, 'version':version, 'versionCode':code, 'source':source, 'aabSha256':digest, 'uploadCertificateSha256':pin})
+          (evidence / 'historical-release-identities.json').write_text(json.dumps(verified, indent=2)+'\n')
+          print('Verified exact original signed release AABs; neither app was rebuilt.')
+          PY
+      - name: Install dotted-API Android tools and enable KVM
+        run: |
+          set -euo pipefail
+          bash scripts/install_android_cmdline_tools.sh
+          test -e /dev/kvm
+          sudo chmod 666 /dev/kvm
+      - name: Upgrade installed release without uninstalling or clearing data
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+        with:
+          api-level: '37.0'
+          system-image-api-level: '37.0'
+          emulator-build: '16740729'
+          channel: stable
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          avd-name: upgrade
+          disk-size: 4096M
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 300
+          disable-animations: false
+          emulator-options: -no-window -gpu software -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/verify_release_upgrade.sh
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SnowGlobe-upgrade-100028-to-100029-${{ github.run_number }}-${{ github.run_attempt }}
+          path: upgrade-evidence/
+          if-no-files-found: warn
+          retention-days: 14
