@@ -3,6 +3,10 @@
 # only, never a raw core, process environment, local variables or signing data.
 # The workflow bounds this entire script to 85 seconds (+5 seconds to terminate).
 set -u
+if [ "$(uname -s)" != Linux ]; then
+  echo 'Linux native triage is not applicable; host diagnostics retain macOS crash metadata.'
+  exit 0
+fi
 output=app/build/reports/emulator-host/native-triage
 mkdir -p "$output" || exit 0
 

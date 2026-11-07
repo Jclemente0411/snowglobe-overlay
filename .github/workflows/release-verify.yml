@@ -17,25 +17,27 @@ jobs:
     name: Android ${{ matrix.android }} tests and screenshots
     env:
       PLAY_BILLING_PUBLIC_KEY: ${{ vars.PLAY_BILLING_PUBLIC_KEY }}
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:
         include:
           # Exact Google archive builds: https://developer.android.com/studio/emulator_archive
-          # Isolate API 35 host SIGSEGVs on 37.2.13; 37.2.12 has a known host leak:
-          # https://issuetracker.google.com/issues/568480829
+          # Keep the full API 35 suite on an independent, supported Intel/HVF host.
+          # Linux native-crash evidence is retained separately; this is not a waived gate.
           - android: '15'
             api: '35'
+            runner: macos-15-intel
             emulator_build: '15917651'
             emulator_version: '37.1.11'
-            # Supported GLES isolation: https://developer.android.com/studio/run/emulator-troubleshooting
-            emulator_graphics: '-gpu swiftshader -feature -Vulkan'
-            # Published Linux archive SHA256 (provenance; the action downloads over HTTPS):
-            # 95771e0ae431897b2a4bd2d97fa095f29a8b0624a7b216baf529f9306161c266
+            # https://developer.android.com/studio/run/emulator-acceleration
+            emulator_graphics: '-gpu auto -accel on'
+            # Published Darwin Intel archive SHA256 (provenance; action downloads via HTTPS):
+            # c1a3890f95b8868198918fad05ffca16fa20404d93547ba545ff5a5867ee7005
           - android: '17'
             api: '37.0'
+            runner: ubuntu-24.04
             emulator_build: '16740729'
             emulator_version: '37.2.13'
             emulator_graphics: '-gpu software'
@@ -43,6 +45,10 @@ jobs:
             # cbc7c3cfb83220b8a0f9c513fdab557712e74d339ec19ddffa43f23350ae9bdd
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare GNU command-line tools on macOS
+        if: runner.os == 'macOS'
+        timeout-minutes: 5
+        run: bash scripts/prepare_macos_tools.sh
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -58,6 +64,7 @@ jobs:
       - name: JVM regressions, lint and test compilation
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :tap-probe:assembleDebug
       - name: Enable emulator acceleration
+        if: runner.os == 'Linux'
         run: |
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
       - name: Record emulator host baseline
@@ -86,11 +93,11 @@ jobs:
           heap-size: 512M
           emulator-boot-timeout: 900
           disable-animations: false
-          # Keep Android 17's backend; isolate Android 15's host native crash via GLES only.
+          # Android 15 requires HVF; Android 17 retains its verified Linux backend.
           emulator-options: -no-window ${{ matrix.emulator_graphics }} -noaudio -no-boot-anim -camera-back none
           script: bash scripts/run_device_checks.sh
       - name: Capture bounded native emulator failure details
-        if: always() && steps.device_tests.outcome == 'failure'
+        if: always() && runner.os == 'Linux' && steps.device_tests.outcome == 'failure'
         timeout-minutes: 2
         run: timeout --kill-after=5s 85s bash scripts/capture_emulator_native_triage.sh || true
       - name: Retain host diagnostics even when emulator startup fails

@@ -14,16 +14,36 @@ if [ -f "$latest/source.properties" ]; then
   revision=$(sed -n 's/^Pkg.Revision[[:space:]]*=[[:space:]]*//p' "$latest/source.properties" | tr -d '\r')
 fi
 if [ "$revision" != 23.0 ]; then
+  # SHA256 values are computed from bytes verified against Google's
+  # repository2-3.xml package metadata (2026-11-07).
+  case "$(uname -s)" in
+    Linux)
+      package=commandlinetools-linux-16111833_latest.zip
+      # 181052239 bytes; SHA1 e025545c62a8e64c7559119566a569fb1dec5f60.
+      checksum=0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8
+      ;;
+    Darwin)
+      if [ "$(uname -m)" != x86_64 ]; then
+        echo '::error::The pinned macOS command-line tools require an Intel x86_64 runner'
+        exit 1
+      fi
+      package=commandlinetools-mac_x86_64-16111833_latest.zip
+      # 155582504 bytes; SHA1 112cf9618794a997ff273537d55bee02c22abffe.
+      checksum=7e601c04e7173754b3d051a87bb4c3a8243c65a9d7bfa9356ed6499fb8953fa3
+      ;;
+    *)
+      echo '::error::The pinned Android command-line tools support Linux or Intel macOS'
+      exit 1
+      ;;
+  esac
   work=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/snowglobe-cmdline.XXXXXX")
   trap 'rm -rf "$work"' EXIT
   archive=${1:-$work/commandline-tools.zip}
   if [ "$#" -eq 0 ]; then
     curl --fail --location --silent --show-error \
-      https://dl.google.com/android/repository/commandlinetools-linux-16111833_latest.zip -o "$archive"
+      "https://dl.google.com/android/repository/$package" -o "$archive"
   fi
-  # SHA256 computed from bytes verified against Google's repository2-3.xml:
-  # 23.0, 181052239 bytes, SHA1 e025545c62a8e64c7559119566a569fb1dec5f60 (2026-11-07).
-  printf '%s  %s\n' 0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c446918cfa8 "$archive" | sha256sum -c -
+  printf '%s  %s\n' "$checksum" "$archive" | sha256sum -c -
   unzip -q "$archive" -d "$work/extracted"
   incoming="$work/extracted/cmdline-tools"
   grep -Eq '^Pkg.Revision[[:space:]]*=[[:space:]]*23[.]0[[:space:]]*$' "$incoming/source.properties"

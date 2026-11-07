@@ -18,27 +18,38 @@ capture() {
 
 capture timestamp.txt date -u '+%Y-%m-%dT%H:%M:%SZ'
 capture uname.txt uname -a
-capture lscpu.txt lscpu
-capture memory.txt free -m
-capture host-meminfo.txt cat /proc/meminfo
-capture memory-pressure.txt cat /proc/pressure/memory
-capture cpu-pressure.txt cat /proc/pressure/cpu
 capture disk.txt df -h . /tmp
-capture processes.txt ps -eo pid,ppid,comm,rss,vsz,pcpu,pmem,etimes --sort=-rss
-# Preserve the tail, where a recent OOM kill or native crash would be recorded.
-timeout 5s sudo -n dmesg --ctime 2>&1 | tail -n 400 | head -c 262144 > "$output/kernel.txt" || true
-capture kernel-journal.txt sudo -n journalctl -k --since '-20 min' --no-pager -n 400
-capture coredumps.txt sudo -n coredumpctl --no-pager --no-legend list --since '-20 min'
-capture emulator-coredump-info.txt sudo -n coredumpctl --no-pager info --since '-20 min' \
-  "${ANDROID_HOME:-/usr/local/lib/android/sdk}/emulator/qemu/linux-x86_64/qemu-system-x86_64-headless"
+host=$(uname -s)
+case "$host" in
+  Darwin)
+    capture cpu-and-memory.txt sysctl machdep.cpu.brand_string hw.ncpu hw.memsize kern.hv_support
+    capture memory.txt vm_stat
+    capture processes.txt ps -axo pid,ppid,ucomm,rss,vsz,pcpu,pmem,etime
+    ;;
+  Linux)
+    capture lscpu.txt lscpu
+    capture memory.txt free -m
+    capture host-meminfo.txt cat /proc/meminfo
+    capture memory-pressure.txt cat /proc/pressure/memory
+    capture cpu-pressure.txt cat /proc/pressure/cpu
+    capture processes.txt ps -eo pid,ppid,comm,rss,vsz,pcpu,pmem,etimes --sort=-rss
+    # Preserve the tail, where a recent OOM kill or native crash would be recorded.
+    timeout 5s sudo -n dmesg --ctime 2>&1 | tail -n 400 | head -c 262144 > "$output/kernel.txt" || true
+    capture kernel-journal.txt sudo -n journalctl -k --since '-20 min' --no-pager -n 400
+    capture coredumps.txt sudo -n coredumpctl --no-pager --no-legend list --since '-20 min'
+    capture emulator-coredump-info.txt sudo -n coredumpctl --no-pager info --since '-20 min' \
+      "${ANDROID_HOME:-/usr/local/lib/android/sdk}/emulator/qemu/linux-x86_64/qemu-system-x86_64-headless"
+    ;;
+esac
 
-timeout 10s python3 - "$output" <<'PY' || true
+timeout 10s python3 - "$output" "$host" <<'PY' || true
 import getpass
 import os
 import sys
 from pathlib import Path
 
 output = Path(sys.argv[1])
+host = sys.argv[2]
 
 
 def read_bounded(path, maximum=16384):
@@ -49,61 +60,85 @@ def read_bounded(path, maximum=16384):
         return f'Unavailable: {error}\n'
 
 
-# Record the current cgroup and its ancestors: a host can have free RAM while a
-# runner-specific memory limit still kills qemu. Include v1 and v2 counters.
-cgroup_text = read_bounded(Path('/proc/self/cgroup'))
-names = ('memory.current', 'memory.max', 'memory.peak', 'memory.events',
-         'memory.events.local', 'memory.pressure', 'memory.swap.current',
-         'memory.swap.max', 'memory.usage_in_bytes', 'memory.max_usage_in_bytes',
-         'memory.limit_in_bytes', 'memory.failcnt', 'memory.oom_control')
-root = Path('/sys/fs/cgroup')
-folders = {root, root / 'memory'}
-for line in cgroup_text.splitlines():
-    fields = line.split(':', 2)
-    if len(fields) != 3:
-        continue
-    base = root / 'memory' if 'memory' in fields[1].split(',') else root
-    folder = base / fields[2].lstrip('/')
-    for _ in range(8):
-        if folder.is_relative_to(root):
-            folders.add(folder)
-        if folder == root or folder.parent == folder:
-            break
-        folder = folder.parent
-with (output / 'cgroups.txt').open('w') as report:
-    report.write(cgroup_text + '\n')
-    for folder in sorted(folders)[:32]:
-        for name in names:
-            path = folder / name
-            if path.is_file():
-                report.write(f'\n{path}\n{read_bounded(path)}')
+if host == 'Linux':
+    # Record the current cgroup and its ancestors: a host can have free RAM while a
+    # runner-specific memory limit still kills qemu. Include v1 and v2 counters.
+    cgroup_text = read_bounded(Path('/proc/self/cgroup'))
+    names = ('memory.current', 'memory.max', 'memory.peak', 'memory.events',
+             'memory.events.local', 'memory.pressure', 'memory.swap.current',
+             'memory.swap.max', 'memory.usage_in_bytes', 'memory.max_usage_in_bytes',
+             'memory.limit_in_bytes', 'memory.failcnt', 'memory.oom_control')
+    root = Path('/sys/fs/cgroup')
+    folders = {root, root / 'memory'}
+    for line in cgroup_text.splitlines():
+        fields = line.split(':', 2)
+        if len(fields) != 3:
+            continue
+        base = root / 'memory' if 'memory' in fields[1].split(',') else root
+        folder = base / fields[2].lstrip('/')
+        for _ in range(8):
+            if folder.is_relative_to(root):
+                folders.add(folder)
+            if folder == root or folder.parent == folder:
+                break
+            folder = folder.parent
+    with (output / 'cgroups.txt').open('w') as report:
+        report.write(cgroup_text + '\n')
+        for folder in sorted(folders)[:32]:
+            for name in names:
+                path = folder / name
+                if path.is_file():
+                    report.write(f'\n{path}\n{read_bounded(path)}')
 
-with (output / 'emulator-processes.txt').open('w') as report:
-    selected = 0
-    mapped = 0
-    for process in Path('/proc').iterdir():
-        if not process.name.isdigit():
-            continue
-        name = read_bounded(process / 'comm', 128).strip()
-        # Keep the executable load bias before a native crash removes /proc/PID.
-        # Never read process memory, command lines or environment variables.
-        try:
-            executable = (process / 'exe').resolve(strict=True)
-            if executable.name == 'qemu-system-x86_64-headless' and mapped < 4:
-                with (process / 'maps').open('rb') as handle:
-                    (output / f'qemu-{process.name}-maps.txt').write_bytes(handle.read(262144))
-                mapped += 1
-        except OSError:
-            pass
-        if not any(part in name.lower() for part in ('qemu', 'emulator', 'java', 'adb', 'netsim')):
-            continue
-        selected += 1
-        if selected > 32:
-            if selected == 33:
-                report.write('Process record limit reached.\n')
-            continue
-        for filename in ('status', 'oom_score', 'oom_score_adj', 'cgroup'):
-            report.write(f'\nPID {process.name} {filename}\n{read_bounded(process / filename)}')
+    with (output / 'emulator-processes.txt').open('w') as report:
+        selected = 0
+        mapped = 0
+        for process in Path('/proc').iterdir():
+            if not process.name.isdigit():
+                continue
+            name = read_bounded(process / 'comm', 128).strip()
+            # Keep the executable load bias before a native crash removes /proc/PID.
+            # Never read process memory, command lines or environment variables.
+            try:
+                executable = (process / 'exe').resolve(strict=True)
+                if executable.name == 'qemu-system-x86_64-headless' and mapped < 4:
+                    with (process / 'maps').open('rb') as handle:
+                        (output / f'qemu-{process.name}-maps.txt').write_bytes(handle.read(262144))
+                    mapped += 1
+            except OSError:
+                pass
+            if not any(part in name.lower() for part in ('qemu', 'emulator', 'java', 'adb', 'netsim')):
+                continue
+            selected += 1
+            if selected > 32:
+                if selected == 33:
+                    report.write('Process record limit reached.\n')
+                continue
+            for filename in ('status', 'oom_score', 'oom_score_adj', 'cgroup'):
+                report.write(f'\nPID {process.name} {filename}\n{read_bounded(process / filename)}')
+
+elif host == 'Darwin':
+    # CrashReporter files can contain process data. Retain only filename/size/time
+    # metadata for the emulator, never report contents, environment or raw dumps.
+    roots = (Path.home() / 'Library/Logs/DiagnosticReports', Path('/Library/Logs/DiagnosticReports'))
+    with (output / 'macos-crash-reports.txt').open('w') as report:
+        recorded = 0
+        for directory in roots:
+            if not directory.is_dir():
+                report.write(f'{directory}: absent\n')
+                continue
+            try:
+                for scanned, path in enumerate(directory.iterdir()):
+                    if scanned >= 512 or recorded >= 128:
+                        break
+                    if path.is_symlink() or not path.name.lower().startswith(('qemu', 'emulator', 'netsim')):
+                        continue
+                    if path.is_file():
+                        stat = path.stat()
+                        report.write(f'{path}: bytes={stat.st_size}, modified={stat.st_mtime}\n')
+                        recorded += 1
+            except OSError as error:
+                report.write(f'Unavailable: {error}\n')
 
 # Use the same dotted-API validator as the device gate, then limit the selected
 # source.properties to the SDK system-images tree. Diagnostic failure is benign.
@@ -130,7 +165,8 @@ with (output / 'system-image-selection.txt').open('w') as report:
 
 # Crashpad uses emu-crash-<version>.db directories under /tmp/android-<user>.
 # Retain metadata and short text tails only; never upload raw cores/minidumps.
-roots = {Path('/tmp/android-runner'), Path('/tmp') / ('android-' + getpass.getuser())}
+roots = {Path('/tmp/android-runner'), Path('/tmp') / ('android-' + getpass.getuser()),
+         Path(os.environ.get('TMPDIR', '/tmp')) / ('android-' + getpass.getuser())}
 record_count = 0
 with (output / 'emulator-crashes.txt').open('w') as report:
     for crash_root in sorted(roots):

@@ -50,6 +50,26 @@ for key, expected in (('Pkg.Revision', os.environ['SNOWGLOBE_EMULATOR_VERSION'])
 PY
   timeout 15s "$ANDROID_HOME/emulator/emulator" -no-window -version > "$emulator_evidence/binary-version.txt" 2>&1
   grep -F "Android emulator version ${SNOWGLOBE_EMULATOR_VERSION}.0 (build_id ${SNOWGLOBE_EMULATOR_BUILD})" "$emulator_evidence/binary-version.txt"
+  timeout 15s "$ANDROID_HOME/emulator/emulator" -no-window -accel-check > "$emulator_evidence/acceleration-check.txt" 2>&1
+  if [ "$(uname -s)" = Darwin ]; then
+    # A passing macOS job must use the supported built-in hypervisor, not TCG.
+    python3 - "$emulator_evidence/acceleration-check.txt" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+lines = [line.strip() for line in Path(sys.argv[1]).read_text().splitlines()]
+try:
+    start = lines.index('accel:')
+except ValueError:
+    raise SystemExit('Missing emulator acceleration status on macOS')
+if start + 1 >= len(lines) or lines[start + 1] != '0':
+    raise SystemExit('Emulator acceleration is unavailable on macOS')
+if not re.search(r'\b(?:Hypervisor[.]Framework|HVF)\b', '\n'.join(lines[start + 2:])):
+    raise SystemExit('The macOS emulator did not confirm Hypervisor.Framework')
+print('Verified macOS Hypervisor.Framework acceleration.')
+PY
+  fi
 fi
 if [ -n "${SNOWGLOBE_AVD_NAME:-}" ]; then
   python3 scripts/verify_android_avd.py --avd-home "${ANDROID_AVD_HOME:-$HOME/.android/avd}" \
