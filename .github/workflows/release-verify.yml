@@ -110,7 +110,11 @@ jobs:
           PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
         run: gradle --no-daemon :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata
       - name: Ensure 16 KB APK verifier is available
-        run: sdkmanager "build-tools;36.0.0"
+        run: |
+          set -euo pipefail
+          bash scripts/install_android_cmdline_tools.sh
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
+          test -x "$ANDROID_HOME/build-tools/36.0.0/zipalign"
       - name: Verify signature, bundle metadata and 16 KB libraries
         env:
           PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
