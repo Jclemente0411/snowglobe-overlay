@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.os.SystemClock;
 import androidx.test.core.app.ActivityScenario;
 import androidx.test.core.app.ApplicationProvider;
@@ -38,19 +39,34 @@ public class ChristmasMagicTest {
         SystemClock.sleep(500);
         assertTrue(device.takeScreenshot(new File(screenshots,file)));
     }
-    private boolean revealHomeSection(String title){
+    private UiObject2 homeList(){
+        BySelector scrollable=By.pkg(context.getPackageName()).scrollable(true);
+        if(!device.wait(Until.hasObject(scrollable),5000))return null;
+        UiObject2 tallest=null;int height=0;
+        // The main vertical list is taller than nested horizontal carousels.
+        for(UiObject2 candidate:device.findObjects(scrollable)){
+            Rect bounds=candidate.getVisibleBounds();
+            if(bounds.height()>height){tallest=candidate;height=bounds.height();}
+        }
+        return tallest;
+    }
+    private boolean revealHomeSection(String title) throws Exception {
         BySelector target=By.text(title);
         for(int attempt=0;attempt<=12;attempt++){
             // The target can already be in the initial viewport; never scroll past it first.
             if(device.wait(Until.hasObject(target),750))return true;
-            if(attempt==12)return false;
-            UiObject2 content=device.wait(Until.findObject(By.scrollable(true)),5000);
-            if(content==null)return false;
+            if(attempt==12)break;
+            UiObject2 content=homeList();
+            if(content==null)break;
             content.setGestureMarginPercentage(.12f);
             // Scroll a bounded part of the actual list, with a controlled speed instead of a fling.
-            if(!content.scroll(Direction.DOWN,.4f,900))
-                return device.wait(Until.hasObject(target),1500);
+            // Compose may omit the scroll event UiAutomator expects; false is not proof of the end.
+            content.scroll(Direction.DOWN,.4f,900);
         }
+        // Capture the still-open Studio before ActivityScenario closes after the strict assertion.
+        String name="FAILED-discovery-"+title.replaceAll("[^A-Za-z0-9]+","-");
+        device.takeScreenshot(new File(screenshots,name+".png"));
+        device.dumpWindowHierarchy(new File(screenshots,name+".xml"));
         return false;
     }
     @Test public void pixelSetupAndChristmasScenesAreDiscoverable() throws Exception {
