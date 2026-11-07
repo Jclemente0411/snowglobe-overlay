@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: snowglobe-release-${{ github.ref }}
+  group: snowglobe-release-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
 jobs:
   quality:
@@ -37,6 +37,8 @@ jobs:
           cache-read-only: false
       - name: Release verifier regressions
         run: python3 -B -m unittest discover -s scripts/tests -v
+      - name: Install Android tools that correctly parse dotted API levels
+        run: bash scripts/install_android_cmdline_tools.sh
       - name: JVM regressions, lint and test compilation
         run: gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :tap-probe:assembleDebug
       - name: Enable emulator acceleration
@@ -46,6 +48,7 @@ jobs:
         uses: reactivecircus/android-emulator-runner@v2
         env:
           EXPECTED_ANDROID_API: ${{ matrix.api }}
+          SNOWGLOBE_AVD_NAME: test
         with:
           api-level: ${{ matrix.api }}
           system-image-api-level: ${{ matrix.api }}
@@ -53,6 +56,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
+          avd-name: test
           disk-size: 4096M
           ram-size: 4096M
           heap-size: 512M
@@ -63,7 +67,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: SnowGlobe-android-${{ matrix.android }}-evidence-${{ github.run_number }}
+          name: SnowGlobe-android-${{ matrix.android }}-evidence-${{ github.run_number }}-${{ github.run_attempt }}
           path: |
             app/build/reports/
             app/build/outputs/androidTest-results/
@@ -151,7 +155,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/upload-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: SnowGlobe-0216-signed-AAB-${{ github.run_number }}
+          name: SnowGlobe-0216-signed-AAB-${{ github.run_number }}-${{ github.run_attempt }}
           path: release/
           if-no-files-found: error
           retention-days: 14
