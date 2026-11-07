@@ -24,20 +24,22 @@ jobs:
       matrix:
         include:
           # Exact Google archive builds: https://developer.android.com/studio/emulator_archive
-          # Keep the full API 35 suite on an independent, supported Intel/HVF host.
-          # Linux native-crash evidence is retained separately; this is not a waived gate.
+          # Isolate API 35's GLES implementation with verified Mesa llvmpipe/KVM.
+          # Prior SwiftShader host crashes and Mac boot failures remain retained.
           - android: '15'
             api: '35'
-            runner: macos-15-intel
+            runner: ubuntu-24.04
+            mesa_software: true
             emulator_build: '15917651'
             emulator_version: '37.1.11'
             # https://developer.android.com/studio/run/emulator-acceleration
-            emulator_graphics: '-gpu auto -accel on'
-            # Published Darwin Intel archive SHA256 (provenance; action downloads via HTTPS):
-            # c1a3890f95b8868198918fad05ffca16fa20404d93547ba545ff5a5867ee7005
+            emulator_graphics: '-gpu host -feature -Vulkan'
+            # Published Linux archive SHA256 (provenance; action downloads via HTTPS):
+            # 95771e0ae431897b2a4bd2d97fa095f29a8b0624a7b216baf529f9306161c266
           - android: '17'
             api: '37.0'
             runner: ubuntu-24.04
+            mesa_software: false
             emulator_build: '16740729'
             emulator_version: '37.2.13'
             emulator_graphics: '-gpu software'
@@ -67,6 +69,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+      - name: Configure and verify Mesa software OpenGL
+        if: matrix.mesa_software
+        timeout-minutes: 5
+        run: bash scripts/prepare_llvmpipe.sh
       - name: Record emulator host baseline
         run: timeout 30s bash scripts/capture_emulator_host_diagnostics.sh before-emulator || true
       - name: Real window, input, overlay and UI tests
@@ -77,6 +83,7 @@ jobs:
           SNOWGLOBE_AVD_NAME: test
           SNOWGLOBE_EMULATOR_BUILD: ${{ matrix.emulator_build }}
           SNOWGLOBE_EMULATOR_VERSION: ${{ matrix.emulator_version }}
+          SNOWGLOBE_EXPECT_LLVMPIPE: ${{ matrix.mesa_software && '1' || '0' }}
         with:
           api-level: ${{ matrix.api }}
           system-image-api-level: ${{ matrix.api }}
@@ -93,7 +100,7 @@ jobs:
           heap-size: 512M
           emulator-boot-timeout: 900
           disable-animations: false
-          # Android 15 requires HVF; Android 17 retains its verified Linux backend.
+          # Android 15 verifies host and device Mesa identity; Android 17 is unchanged.
           emulator-options: -no-window ${{ matrix.emulator_graphics }} -noaudio -no-boot-anim -camera-back none
           script: bash scripts/run_device_checks.sh
       - name: Capture bounded native emulator failure details

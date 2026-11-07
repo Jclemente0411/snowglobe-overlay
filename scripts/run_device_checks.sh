@@ -75,6 +75,14 @@ if [ -n "${SNOWGLOBE_AVD_NAME:-}" ]; then
   python3 scripts/verify_android_avd.py --avd-home "${ANDROID_AVD_HOME:-$HOME/.android/avd}" \
     --name "$SNOWGLOBE_AVD_NAME" --expected-api "${EXPECTED_ANDROID_API:?Expected API is required for AVD verification}" --evidence qa-screenshots
 fi
+if [ "${SNOWGLOBE_EXPECT_LLVMPIPE:-0}" = 1 ]; then
+  # Android15 RenderEngine dumps GL_VENDOR/GL_RENDERER/GL_VERSION as its GLES line.
+  # Host glxinfo alone cannot prove the emulator did not select another backend.
+  renderer_evidence=app/build/reports/emulator-host/pinned-emulator
+  mkdir -p "$renderer_evidence"
+  timeout 15s adb shell dumpsys SurfaceFlinger > "$renderer_evidence/surfaceflinger-renderer.txt" 2>&1
+  python3 scripts/verify_llvmpipe_renderer.py --source device "$renderer_evidence/surfaceflinger-renderer.txt"
+fi
 bash scripts/wait_for_android_user.sh
 actual_api=$(adb shell getprop ro.build.version.sdk | tr -d '\r')
 if [ -n "${EXPECTED_ANDROID_API:-}" ] && [ "$actual_api" != "${EXPECTED_ANDROID_API%%.*}" ]; then
