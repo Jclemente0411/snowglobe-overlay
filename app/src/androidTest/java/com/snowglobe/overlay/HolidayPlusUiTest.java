@@ -132,7 +132,8 @@ public final class HolidayPlusUiTest {
                     device.wait(Until.hasObject(By.pkg("com.android.vending")),1500));
                 assertEquals("The disabled upgrade control must leave the user in SnowGlobe",
                     context.getPackageName(),device.getCurrentPackageName());
-                assertTrue(device.hasObject(By.text("SnowGlobe Holiday Plus")));
+                assertFalse("The visible upgrade control must remain disabled after a tap",
+                    button("Available through Google Play").isEnabled());
                 assertFalse(HolidayPlusEntitlement.isOwned(context,BuildConfig.PLAY_BILLING_PUBLIC_KEY));
             }
             enabledButton("Restore purchases").click();
