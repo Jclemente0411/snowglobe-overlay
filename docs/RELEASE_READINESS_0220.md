@@ -2,6 +2,8 @@
 
 Audit date: November 7, 2026 (UTC).
 
+**Post-upload status, November 7 at 5:42 p.m. Eastern:** the owner reports that the Play Store update from installed 0.21.6 fails. A targeted test of the exact archived 0.21.6 and 0.22.0 release payloads subsequently passed on an Android 17 emulator, including replacement installation and removal of the selected legacy keyboard. **The owner's physical-device/Play update failure remains unresolved.** See the post-upload diagnostic below; technical CI success is not confirmation of a working Play update on that phone.
+
 ## Release identity and decision
 
 - Application: `com.snowglobe.overlay`.
@@ -73,9 +75,9 @@ The [signed-bundle job 128469777815](https://github.com/Jclemente0411/snowglobe-
 - ZIP SHA-256 reported by the upload log and artifact API: `e36763e4f1e05a04c138447078dad13dacf20f786c12ab44c69dfc51059e89c9`.
 - Artifact source: `914164b561dc761f501e59df026b4490c738ad2c`, run 42393453546, attempt 1.
 - Created November 7, 2026 at 17:10:39 UTC; expires November 21, 2026 at approximately 17:10 UTC.
-- The authenticated artifact download completed and returned the original ZIP reference. Its bytes were not independently extracted/hashed after the workspace outage.
+- After workspace access returned, the authenticated artifact download was safely extracted and its ZIP digest independently matched the GitHub record. The standalone AAB checksum matched SHA256SUMS.txt, its source/metadata matched the released commit, and its embedded PKCS7 certificate matched the existing upload-key fingerprint.
 
-The ZIP digest above is **not** the standalone AAB digest. The AAB's generated checksum is inside `SHA256SUMS.txt`; no unobserved standalone byte size or digest is asserted here.
+The ZIP digest above is **not** the standalone AAB digest. The independently checked AAB is **8,167,436 bytes**, SHA-256 `226e92d2121d5a3cd6934b22e00fec7449643d11e50d298d4e26ef8ac126681b`. Its generated checksum is also inside `SHA256SUMS.txt`.
 
 The Actions download is a ZIP containing `SnowGlobe-0.22.0-build100029.aab` at the release artifact root. Extract and upload that **AAB** in Play Console. The ZIP is a delivery container; it is not the Play upload format. Included records are `source-commit.txt`, `release-metadata.json`, `SHA256SUMS.txt`, `upload-certificate.txt`, `signature-check.txt`, `bundle-validation.txt`, `AndroidManifest.xml`, `bundle-config.json`, `native-alignment.txt`, `apk-alignment.txt`, and `commerce-status.txt`.
 
@@ -121,9 +123,9 @@ Implementation references: [Android emulator acceleration/graphics](https://deve
 
 ### Workspace interruption
 
-The execution workspace became unavailable around 17:04 UTC while the hosted CI jobs continued. Completed job logs, source comparisons and GitHub artifact metadata were checked through the repository connection. C11 archives were not locally extracted afterward, their byte hashes were not independently recomputed, and C11 screenshots were not separately opened. The signed artifact's standalone AAB checksum and certificate report are included inside the CI ZIP; no independent post-download comparison is claimed.
+The execution workspace became unavailable around 17:04 UTC while the hosted CI jobs continued. Completed job logs, source comparisons and GitHub artifact metadata were initially checked through the repository connection. After access returned, the final signed release archive and standalone AAB were independently hashed/extracted and the embedded upload certificate was compared successfully, as recorded above. The two C11 device-evidence archives were not newly extracted for a fresh host-report count or screenshot review during that delivery check.
 
-The previously established upload-certificate SHA-256 is `73:45:EE:F8:97:0F:7F:8D:E6:20:BB:F7:C0:4B:28:03:0D:F9:C2:F7:A1:D6:8B:68:E5:E0:72:C1:04:8F:48:A4`. The canonical pipeline uses the existing stored key and verifies against it. A separate local comparison of the final artifact against this historical fingerprint was planned but could not be executed during the outage.
+The previously established upload-certificate SHA-256 is `73:45:EE:F8:97:0F:7F:8D:E6:20:BB:F7:C0:4B:28:03:0D:F9:C2:F7:A1:D6:8B:68:E5:E0:72:C1:04:8F:48:A4`. The canonical pipeline uses the existing stored key and verifies against it. The separate local comparison could not run during the outage; it was completed after access returned and the final AAB's embedded certificate matched this historical fingerprint.
 
 ### Holiday Plus / Play Console
 
@@ -146,3 +148,28 @@ See [Holiday Plus setup](HOLIDAY_PLUS_SETUP.md) for the operational handoff.
 Complete the account's actual Console checks, store listing/privacy/Data safety declarations, foreground-service specialUse justification and genuine demonstration video, content rating and any account-specific testing/production-access requirement. These cannot be inferred from CI.
 
 No physical Pixel frame-time measurement, 120 Hz guarantee, battery benchmark, complete TalkBack session, live transaction, Google approval or same-day publication is claimed. The free technical build and the paid commercial launch have separate evidence requirements.
+
+## Post-upload update diagnostic: 0.21.6 to 0.22.0
+
+The owner reported a generic Play Store “Can't update” dialog, then confirmed that the phone still runs 0.21.6 after the initial troubleshooting steps. The dialog does not identify the version Play is serving or an underlying PackageInstaller error. The actual uploaded release artifacts were compared: both use package `com.snowglobe.overlay`, minimum SDK 26, target SDK 36, and the same upload certificate; version increases from 100028 to 100029. Provider authority and the custom signature-permission namespace remain unchanged. No installation blocker was identified by that comparison.
+
+The previous device matrix exercised fresh debug installations. It did not prove an in-place upgrade of the archived signed releases. A separate diagnostic was added on `diagnostics/upgrade-100028-100029-20261107`, source `730034d5b99e41ea9686132b5903ee5f5ebe9c47`. **Neither application was rebuilt or changed.**
+
+[Diagnostic run 42421616927](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42421616927), job 128551059587, completed successfully on November 7 at 5:42 p.m. Eastern. All 15 job steps passed and all 30 captured commands returned exit code zero.
+
+| Check | Old release | Updated release |
+| --- | --- | --- |
+| Version | 0.21.6 / 100028 | 0.22.0 / 100029 |
+| AAB SHA-256 | `bb5c88a8a55607c1b9083f03e32771c50094055df72b7ae4772a145f33742c77` | `226e92d2121d5a3cd6934b22e00fec7449643d11e50d298d4e26ef8ac126681b` |
+| Installer result | Success, exit 0 | Success, exit 0 |
+| Package UID | 10234 | 10234 |
+| First-install timestamp, retained verbatim from the UTC emulator | 2026-11-07 22:41:29 | 2026-11-07 22:41:29 |
+| Studio launch | Status: ok | Status: ok |
+
+The test used the emulator's actual device specification and four APK splits per version: base, English, x86_64 and xxhdpi. It installed the old release, selected `ChristmasKeyboardService`, then performed one replacement installation without uninstalling, clearing data or permitting a downgrade. After replacement, StudioActivity was resumed, the old keyboard was absent, and Android selected `com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME`. No matching Java fatal exception or native crash was found in the captured interval.
+
+[Evidence artifact 13594191410](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42421616927/artifacts/13594191410), `SnowGlobe-upgrade-100028-to-100029-1-1`, contains 113 files and is 1,582,340 bytes. Its independently verified ZIP SHA-256 is `e0c61ea14037a9a78a4d238e521d1a71bb4c59d8aeed02aec90f42452acff3bb`. The archive passed integrity, path and symlink checks; the report, installer outputs, exit codes and before/after package records were inspected.
+
+**Limits:** this was Android API 37 on x86_64 with 4,096-byte pages. It does not establish runtime behavior on the owner's ARM64/16 KB phone. Generated APKs shared the existing upload key, so the test does not validate Google's app-signing certificate/lineage or Play delivery. Unchanged UID and firstInstallTime show package continuity; no claim is made that individual settings, saved scenes or purchase records were inspected for retention.
+
+The next required account-side evidence is the internal-testing release status for **0.22.0 / 100029**. If that release is active for the tester and the update still fails, obtain the actual PackageInstaller/PackageManager failure from the phone. A new app version or key replacement is not justified by the generic popup alone.
