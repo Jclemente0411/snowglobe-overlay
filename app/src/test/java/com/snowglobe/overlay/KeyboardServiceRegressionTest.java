@@ -7,7 +7,6 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.EditText;
 import java.time.Duration;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
@@ -57,11 +56,15 @@ public final class KeyboardServiceRegressionTest {
         service.onStartInputView(info,false);
     }
     private void completeCapsQuery() throws Exception {
-        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(25));
         ThreadPoolExecutor worker=ReflectionHelpers.getField(service,"capsWorker");
-        CountDownLatch complete=new CountDownLatch(1);
-        worker.execute(complete::countDown);
-        assertTrue("Capitalization worker must finish",complete.await(3,TimeUnit.SECONDS));
+        long completedBefore=worker.getCompletedTaskCount();
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(25));
+        // Observer tasks could evict the caps query from this intentionally coalescing queue.
+        // Observe its completion instead; the finished query has already posted its UI result.
+        long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(3);
+        while(worker.getCompletedTaskCount()==completedBefore&&System.nanoTime()<deadline)
+            Thread.sleep(1);
+        assertTrue("Capitalization worker must finish its query",worker.getCompletedTaskCount()>completedBefore);
         Shadows.shadowOf(Looper.getMainLooper()).idle();
     }
     private boolean shifted(){return ReflectionHelpers.getField(keyboard,"autoShift");}
