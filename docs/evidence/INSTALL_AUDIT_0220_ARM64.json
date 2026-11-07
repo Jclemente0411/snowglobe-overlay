@@ -1,0 +1,163 @@
+{
+  "checked_at_utc": "2026-11-07T23:25:00Z",
+  "old_source": "cdc1be36a049c807623babe08784b5ad362c4756",
+  "new_source": "914164b561dc761f501e59df026b4490c738ad2c",
+  "bundletool_sha256": "675786493983787ffa11550bdb7c0715679a44e1643f3ff980a529e9c822595c",
+  "app_mutated": false,
+  "device_installed": false,
+  "google_play_delivery_verified": false,
+  "packaging": {
+    "purpose": "Static ARM64 APK packaging comparison; unsigned diagnostic APKs, no device installation",
+    "device_spec_source": "Representative manually constructed Android17 ARM64 spec; not captured from physical phone",
+    "device_spec": {
+      "supportedAbis": [
+        "arm64-v8a"
+      ],
+      "supportedLocales": [
+        "en"
+      ],
+      "screenDensity": 560,
+      "sdkVersion": 37
+    },
+    "releases": {
+      "old": [
+        {
+          "name": "splits/base-arm64_v8a.apk",
+          "bytes": 26655,
+          "sha256": "fb3eda36927a07ad4e86a6ca15d24d20155a371d5bf0dea8dc88d0c6b0066574",
+          "stored_entries": 1,
+          "native_libraries": [
+            {
+              "name": "lib/arm64-v8a/libandroidx.graphics.path.so",
+              "data_offset": 16384,
+              "alignment_required": 16384,
+              "aligned": true,
+              "sha256": "41e9a793c43a0f4fddb19e33f346bace464f30f888ba7b9eaf96294ea115bfb6"
+            }
+          ],
+          "alignment_failures": []
+        },
+        {
+          "name": "splits/base-en.apk",
+          "bytes": 46243,
+          "sha256": "0df52e7254501008bff6e1cd95600aa3413ceff41679dab693ef67be006ea040",
+          "stored_entries": 1,
+          "native_libraries": [],
+          "alignment_failures": []
+        },
+        {
+          "name": "splits/base-master.apk",
+          "bytes": 20971793,
+          "sha256": "b48056582b54d1a6bb525ba58a216aa710e2ed3c75708b3b97f4ede3f0ef9d34",
+          "stored_entries": 51,
+          "native_libraries": [],
+          "alignment_failures": []
+        },
+        {
+          "name": "splits/base-xxxhdpi.apk",
+          "bytes": 9295,
+          "sha256": "cda0392a3004463c81c476c579535afe607f20661bdb3b7ba2c74447831bd392",
+          "stored_entries": 6,
+          "native_libraries": [],
+          "alignment_failures": []
+        }
+      ],
+      "new": [
+        {
+          "name": "splits/base-arm64_v8a.apk",
+          "bytes": 26655,
+          "sha256": "1010ae07500c97d8036f1119e72879c9308859eab08403bd383a162dede9e00e",
+          "stored_entries": 1,
+          "native_libraries": [
+            {
+              "name": "lib/arm64-v8a/libandroidx.graphics.path.so",
+              "data_offset": 16384,
+              "alignment_required": 16384,
+              "aligned": true,
+              "sha256": "41e9a793c43a0f4fddb19e33f346bace464f30f888ba7b9eaf96294ea115bfb6"
+            }
+          ],
+          "alignment_failures": []
+        },
+        {
+          "name": "splits/base-en.apk",
+          "bytes": 48619,
+          "sha256": "261d4d848d4b9f00c401f7e1c3700a8c09479cbbb92bf9ec38f2e14fde2da861",
+          "stored_entries": 1,
+          "native_libraries": [],
+          "alignment_failures": []
+        },
+        {
+          "name": "splits/base-master.apk",
+          "bytes": 22639984,
+          "sha256": "94661f217abeaedd403acf9c1d30e134353b01481a13cb822b997c098086538f",
+          "stored_entries": 59,
+          "native_libraries": [],
+          "alignment_failures": []
+        },
+        {
+          "name": "splits/base-xxxhdpi.apk",
+          "bytes": 15104,
+          "sha256": "f7e2f9cf961f8487c2ea74166916b491e3eda5b1dc0a602ad5abe989ab820daa",
+          "stored_entries": 13,
+          "native_libraries": [],
+          "alignment_failures": []
+        }
+      ]
+    }
+  },
+  "aapt2": [
+    {
+      "apk": "new/arm64-apks/base-arm64_v8a.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100029' versionName='' split='config.arm64_v8a'",
+      "native": [
+        "native-code: 'arm64-v8a'"
+      ]
+    },
+    {
+      "apk": "new/arm64-apks/base-en.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100029' versionName='' split='config.en'",
+      "native": []
+    },
+    {
+      "apk": "new/arm64-apks/base-master.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100029' versionName='0.22.0' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'",
+      "native": []
+    },
+    {
+      "apk": "new/arm64-apks/base-xxxhdpi.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100029' versionName='' split='config.xxxhdpi'",
+      "native": []
+    },
+    {
+      "apk": "old/arm64-apks/base-arm64_v8a.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100028' versionName='' split='config.arm64_v8a'",
+      "native": [
+        "native-code: 'arm64-v8a'"
+      ]
+    },
+    {
+      "apk": "old/arm64-apks/base-en.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100028' versionName='' split='config.en'",
+      "native": []
+    },
+    {
+      "apk": "old/arm64-apks/base-master.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100028' versionName='0.21.6' platformBuildVersionName='16' platformBuildVersionCode='36' compileSdkVersion='36' compileSdkVersionCodename='16'",
+      "native": []
+    },
+    {
+      "apk": "old/arm64-apks/base-xxxhdpi.apk",
+      "returncode": 0,
+      "package": "package: name='com.snowglobe.overlay' versionCode='100028' versionName='' split='config.xxxhdpi'",
+      "native": []
+    }
+  ]
+}

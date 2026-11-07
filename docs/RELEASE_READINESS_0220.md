@@ -2,7 +2,7 @@
 
 Audit date: November 7, 2026 (UTC).
 
-**Post-upload status, November 7 at 5:42 p.m. Eastern:** the owner reports that the Play Store update from installed 0.21.6 fails. A targeted test of the exact archived 0.21.6 and 0.22.0 release payloads subsequently passed on an Android 17 emulator, including replacement installation and removal of the selected legacy keyboard. **The owner's physical-device/Play update failure remains unresolved.** See the post-upload diagnostic below; technical CI success is not confirmation of a working Play update on that phone.
+**Post-upload status, November 7 at 6:25 p.m. Eastern:** the owner reports that the Play Store update from installed 0.21.6 fails and that, after uninstalling, a fresh installation stalls at 97% / 6.22 MB. The physical-device/Play installation problem remains unresolved. An archived-release upgrade test passed on an Android 17 x86_64 emulator; a fresh source/AAB comparison and representative ARM64 split-packaging check also found no installer blocker. These checks do not establish successful delivery or installation on the owner's phone. See the post-upload diagnostics below.
 
 ## Release identity and decision
 
@@ -173,3 +173,47 @@ The test used the emulator's actual device specification and four APK splits per
 **Limits:** this was Android API 37 on x86_64 with 4,096-byte pages. It does not establish behavior on the owner's physical phone or on an ARM64 device using 16 KB pages; the phone's actual page size has not been measured. Generated APKs shared the existing upload key, so the test does not validate Google's app-signing certificate/lineage or Play delivery. Unchanged UID and firstInstallTime show package continuity; no claim is made that individual settings, saved scenes or purchase records were inspected for retention.
 
 The next required account-side evidence is the internal-testing release status for **0.22.0 / 100029**. If that release is active for the tester and the update still fails, obtain the actual PackageInstaller/PackageManager failure from the phone. A new app version or key replacement is not justified by the generic popup alone.
+
+
+## Fresh-install and keyboard-removal forensic audit
+
+On November 7, the owner reported uninstalling 0.21.6 and then a fresh Play install stalling at 97% / 6.22 MB. A progress percentage does not supply an Android installer failure code. This broadens the unresolved issue beyond a routine replacement-install failure.
+
+A second, independent source and actual-artifact comparison covered baseline `cdc1be36a049c807623babe08784b5ad362c4756` and release `914164b561dc761f501e59df026b4490c738ad2c`. Both original signed artifacts were downloaded again, checked against their recorded ZIP/AAB digests, and inspected. No application source or release version was changed during this investigation.
+
+### Keyboard removal and concurrent changes
+
+- The IME service declaration, metadata/XML, four implementation classes, keyboard-specific UI, and callbacks were removed together. All 34 remaining production Java/Kotlin files were scanned; no dangling references to the removed classes or IME registration were found.
+- One legacy `EffectsService.setKeyboardTyping` callback remains unused. Its flag defaults to false and has no remaining production caller; it is cleanup debt, not an established installation defect. The generic `WindowInsets.Type.ime()` path in `SnowView` remains useful for reducing rendering work while Gboard or another normal keyboard is visible.
+- Keyboard preference deletion executes during `StudioActivity.onCreate`. It affects only private keys beginning with `keyboard`; it is not a package-install hook and does not change Android's selected keyboard.
+- The startup receiver and overlay service are unchanged from 0.21.6. Android documents `MY_PACKAGE_REPLACED` as a broadcast after the new version has been installed.
+- The same feature commit also added Billing 9.1.0. Its new manifest permission, queries, proxy activities and metadata were checked alongside the IME removal. No extra required hardware feature, provider-authority conflict, changed custom-permission namespace, debug/test-only flag, SDK restriction, or changed application ID was found.
+- The configured billing key is absent in the delivered AAB. Its production gateway is disabled and refresh returns without opening a Billing connection. This is a runtime check, not proof about Play delivery.
+
+### Actual bundle and native-code comparison
+
+- AGP 8.10.1, Kotlin 2.1.20, signing configuration, release minification setting, minimum/target SDK and ABI/split configuration are unchanged.
+- The embedded upload certificates match. This is not a verification of the separate Google Play app-signing certificate on the phone.
+- Both archives are CRC-clean and have no duplicate entries. Every non-signature payload entry's SHA-256 digest matches its JAR manifest: 168 entries in 0.21.6 and 197 in 0.22.0.
+- All four ABI copies of `libandroidx.graphics.path.so` are byte-for-byte identical between releases. The ARM64 library SHA-256 is `41e9a793c43a0f4fddb19e33f346bace464f30f888ba7b9eaf96294ea115bfb6`; native LOAD alignments remain 16,384.
+- Raw `BundleConfig.pb` and `base/native.pb` are identical. Native libraries remain uncompressed with `PAGE_ALIGNMENT_16K`.
+- Both releases' two DEX files pass length, SHA-1 and Adler32 checks and retain DEX format 038.
+- The streaming JAR-manifest-order warning is present in both the working baseline and 0.22.0. It was not introduced by keyboard removal.
+
+### Newly completed ARM64 split-packaging check
+
+The previous release gate inspected a universal APK and the upgrade test installed x86_64 splits. This audit additionally generated ARM64 splits directly from each archived AAB, without rebuilding either application.
+
+Google bundletool 1.18.1 was downloaded from its official release and its SHA-256 matched `675786493983787ffa11550bdb7c0715679a44e1643f3ff980a529e9c822595c`. A manually constructed, representative specification used API 37, ARM64-only, English and density 560; it was **not** a device specification captured from the owner's Pixel.
+
+Both bundles generated four splits successfully: base, ARM64, English and xxxhdpi. All eight APKs passed archive integrity and AAPT2 parsing. Each split carries the expected application ID and the appropriate release's version code. All stored non-library payloads were 4-byte aligned. The uncompressed ARM64 library in each ABI split begins at offset 16,384 and satisfies 16 KB ZIP alignment.
+
+Machine-readable results are in [the ARM64 packaging evidence](evidence/INSTALL_AUDIT_0220_ARM64.json).
+
+**Limits:** these generated APKs were intentionally unsigned, were used only for static packaging inspection, and were never installed or offered to the owner. No signing key was generated or replaced. This does not verify Google's APK signing, Play's exact delivered splits, the owner's actual phone configuration, or a physical ARM64 installation. Do not represent the audit as a confirmed repair or a newly built release.
+
+### Evidence still required to identify the failure
+
+The remaining useful evidence is the actual phone's PackageInstaller/PackageManager result around one failed Play attempt and/or the Play-generated device-specific APKs for version 100029. Read-only package state can also identify whether another Android user/profile retains a package after a current-user uninstall; no such retained copy has been observed on this phone.
+
+References: [Android IME package-removal handling](https://android.googlesource.com/platform/frameworks/base/+/refs/heads/main/services/core/java/com/android/server/inputmethod/InputMethodManagerService.java), [post-install replacement broadcast](https://developer.android.com/reference/android/content/Intent#ACTION_MY_PACKAGE_REPLACED), [bundletool](https://developer.android.com/tools/bundletool), [16 KB packaging](https://developer.android.com/guide/practices/page-sizes), and [Play-generated APK downloads](https://support.google.com/googleplay/android-developer/answer/9844279?hl=en).
