@@ -1,0 +1,21 @@
+{
+  "file_name": "SnowGlobe-0.22.1-build100030.aab",
+  "bytes": 8167416,
+  "sha256": "76d54b78187221480a03f9ff6814f1e6c2291e605d04a8fdf93b5b36a1f99f33",
+  "source_commit": "ef5a2450cbc90c6d8b652395235eaea7e03a1ed3",
+  "upload_certificate_sha256": "7345eef8970f7f8de620bbf7c04b28030df9c2f7a1d68b68e5e072c1048f48a4",
+  "signed_payload_entries_checked": 197,
+  "metadata": {
+    "applicationId": "com.snowglobe.overlay",
+    "versionCode": 100030,
+    "versionName": "0.22.1",
+    "targetSdk": 36,
+    "billingProductId": "holiday_plus_lifetime",
+    "commerceConfigured": false
+  },
+  "archive_integrity": "passed",
+  "checksum_match": true,
+  "upload_certificate_unchanged": true,
+  "custom_keyboard_service_present": false,
+  "physical_pixel_installation_verified": false
+}

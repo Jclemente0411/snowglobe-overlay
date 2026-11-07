@@ -4,7 +4,7 @@ SnowGlobe brings layered snowfall, Christmas lights and original winter artwork 
 
 ## Current release scope
 
-**0.22.0 / 100029** removes the SnowGlobe keyboard completely and concentrates on the overlay, live wallpaper, premium snow rendering, refined launcher icon and an offline 4K wallpaper collection. Minimum SDK 26; compile and target SDK 36. The release record is [RELEASE_READINESS_0220.md](docs/RELEASE_READINESS_0220.md).
+**0.22.1 / 100030** is a fresh upload build of 0.22.0, retaining the effects-focused application and custom keyboard removal. It changes only the release version identity; the reported physical-device Play installation failure is not yet confirmed fixed. Both Android 15/17 verification jobs and existing-key signing passed. See the [0.22.1 file and upload handoff](docs/PLAY_RELEASE_0221.md) and the [underlying application audit](docs/RELEASE_READINESS_0220.md). Minimum SDK 26; compile and target SDK 36.
 
 Free features include full-height layered snow, snow speed/size/density/visibility and shape controls, lights and colors, the Christmas Eve and Arctic Night scene recipes, live wallpaper and two original 2160 × 3840 wallpapers. **SnowGlobe Holiday Plus** is the agreed one-time USD 2.99 upgrade inside this same app; there is no separate paid package or subscription.
 
