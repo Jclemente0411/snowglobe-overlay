@@ -93,6 +93,7 @@ public class SavedScenesTest {
         AtomicReference<BillingResult> product=new AtomicReference<>();
         AtomicReference<BillingResult> purchases=new AtomicReference<>();
         CountDownLatch setupFinished=new CountDownLatch(1),queriesFinished=new CountDownLatch(2);
+        Throwable primaryFailure=null;
         try{
             runSdkOnMain(()->client.set(BillingClient.newBuilder(context)
                 .setListener((result,items)->{ /* Read-only smoke: never grant or log a receipt. */ })
@@ -141,10 +142,21 @@ public class SavedScenesTest {
                 assertFalse("Telemetry must not leave an upload job",
                     job.getService().getClassName().startsWith("com.google.android.datatransport."));
             }
+        }catch(Exception|Error failure){
+            primaryFailure=failure;
+            throw failure;
         }finally{
-            if(client.get()!=null){
-                runSdkOnMain(()->client.get().endConnection());
-                assertFalse("The SDK must release its connection",client.get().isReady());
+            try{
+                if(client.get()!=null){
+                    runSdkOnMain(()->client.get().endConnection());
+                    // In Billing 9.1, isReady() stays true when auto-reconnection is enabled.
+                    // The explicit state reports whether endConnection actually disposed it.
+                    assertEquals("The SDK must close and release its connection",
+                        BillingClient.ConnectionState.CLOSED,client.get().getConnectionState());
+                }
+            }catch(Exception|Error cleanupFailure){
+                if(primaryFailure!=null)primaryFailure.addSuppressed(cleanupFailure);
+                else throw cleanupFailure;
             }
         }
     }
