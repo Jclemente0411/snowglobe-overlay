@@ -15,6 +15,7 @@ import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject2;
 import androidx.test.uiautomator.Until;
 import java.io.File;
+import java.io.FileWriter;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -80,13 +81,22 @@ public final class HolidayPlusUiTest {
 
     private UiObject2 text(String value) throws Exception {return reveal(By.text(value),value);}
 
-    private UiObject2 enabledText(String value) throws Exception {
-        UiObject2 result=text(value);
+    private UiObject2 button(String value) throws Exception {
+        // Compose exposes the label as an enabled TextView even when its Button is disabled.
+        // Check the control's role, never the label's inherited/default enabled state.
+        for(UiObject2 node=text(value);node!=null;node=node.getParent()){
+            if("android.widget.Button".equals(node.getClassName()))return node;
+        }
+        fail("Expected a Button semantics ancestor for: "+value);
+        return null;
+    }
+
+    private UiObject2 enabledButton(String value) throws Exception {
+        UiObject2 result=button(value);
         long deadline=SystemClock.uptimeMillis()+15000;
         while(!result.isEnabled()&&SystemClock.uptimeMillis()<deadline){
             SystemClock.sleep(100);
-            result=device.wait(Until.findObject(By.text(value)),1000);
-            assertNotNull(value+" must remain available",result);
+            result=button(value);
         }
         assertTrue(value+" must become enabled",result.isEnabled());
         return result;
@@ -94,18 +104,39 @@ public final class HolidayPlusUiTest {
 
     private void capture(String name){assertTrue(device.takeScreenshot(new File(screenshots,name)));}
 
+    private void captureLiveFailure(String name,Throwable failure){
+        try{
+            String stem="FAILED-live-"+name;
+            device.takeScreenshot(new File(screenshots,stem+".png"));
+            device.dumpWindowHierarchy(new File(screenshots,stem+".xml"));
+            try(FileWriter out=new FileWriter(new File(screenshots,stem+".txt"))){
+                out.write(failure.toString());
+            }
+        }catch(Exception capture){failure.addSuppressed(capture);}
+    }
+
     @Test public void holidayPlusAndRestoreAreDiscoverableWithoutCharging() throws Exception {
         try(ActivityScenario<StudioActivity> studio=ActivityScenario.launch(StudioActivity.class)){
+          try{
             assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),15000));
             text("Explore Holiday Plus").click();
             assertTrue(device.wait(Until.hasObject(By.text("SnowGlobe Holiday Plus")),10000));
             if(!HolidayPlusEntitlement.isVerificationConfigured(BuildConfig.PLAY_BILLING_PUBLIC_KEY)){
                 assertFalse(HolidayPlusEntitlement.isOwned(context,BuildConfig.PLAY_BILLING_PUBLIC_KEY));
-                UiObject2 buy=text("Available through Google Play");
+                UiObject2 buy=button("Available through Google Play");
                 assertFalse("An unconfigured build must not offer an active checkout",buy.isEnabled());
+                // This is only a no-key build and the actual control has been verified disabled.
+                // Exercise its touch target to prove the disabled state also prevents navigation.
+                buy.click();
+                assertFalse("A disabled upgrade control must not open Google Play checkout",
+                    device.wait(Until.hasObject(By.pkg("com.android.vending")),1500));
+                assertEquals("The disabled upgrade control must leave the user in SnowGlobe",
+                    context.getPackageName(),device.getCurrentPackageName());
+                assertTrue(device.hasObject(By.text("SnowGlobe Holiday Plus")));
+                assertFalse(HolidayPlusEntitlement.isOwned(context,BuildConfig.PLAY_BILLING_PUBLIC_KEY));
             }
-            enabledText("Restore purchases").click();
-            enabledText("Restore purchases");
+            enabledButton("Restore purchases").click();
+            enabledButton("Restore purchases");
             assertFalse("Restore cannot grant ownership without a valid verification key",
                 HolidayPlusEntitlement.isOwned(context,""));
             assertFalse("Restore must not resume effects over a payment surface",EffectsService.isActive());
@@ -118,6 +149,11 @@ public final class HolidayPlusUiTest {
             assertTrue("Free snowfall remains available after visiting the upgrade",
                 device.wait(Until.hasObject(By.text("Snowfall")),10000));
             assertFalse(EffectsService.isActive());
+          }catch(Exception|AssertionError failure){
+            // Capture the sheet before ActivityScenario closes it; the outer rule is too late.
+            captureLiveFailure("holiday-plus",failure);
+            throw failure;
+          }
         }
     }
 

@@ -53,7 +53,7 @@ if [ ! -s "$probe" ]; then
   exit 1
 fi
 adb install -r "$probe"
-# Fail early on the installed effects-only package and scene discovery, then run the complete suite.
+# Fail early on package privacy, actual Billing SDK integration and scene discovery (4 cases).
 # Keep preliminary evidence outside qa-screenshots and connected results so it
 # cannot satisfy the full-suite gate or duplicate required screenshot names.
 preflight_dir=app/build/reports/release-preflight
@@ -61,7 +61,7 @@ mkdir -p "$preflight_dir"
 set +e
 gradle --no-daemon --max-workers=2 '-Dorg.gradle.jvmargs=-Xmx1024m -Dfile.encoding=UTF-8' \
   -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
-  '-Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.EffectsOnlyPackageTest,com.snowglobe.overlay.ChristmasMagicTest#pixelSetupAndChristmasScenesAreDiscoverable' \
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.EffectsOnlyPackageTest,com.snowglobe.overlay.SavedScenesTest#actualBillingSdkReportsServiceStateWithoutTelemetry,com.snowglobe.overlay.ChristmasMagicTest#pixelSetupAndChristmasScenesAreDiscoverable' \
   :app:connectedDebugAndroidTest --rerun 2>&1 | tee "$preflight_dir/gradle.log"
 preflight_pipeline=("${PIPESTATUS[@]}")
 set -e
@@ -75,7 +75,7 @@ if [ -d app/build/reports/androidTests/connected ]; then
 fi
 timeout 30s adb pull /sdcard/Android/data/com.snowglobe.overlay/files/screenshots "$preflight_dir/screenshots" || true
 if [ "$preflight_status" -ne 0 ]; then
-  echo '::error::Effects-only package and scene-discovery preflight failed; its reports and screenshots are preserved'
+  echo '::error::Package, Billing SDK or scene-discovery preflight failed; its reports and screenshots are preserved'
   exit "$preflight_status"
 fi
 # Restore the original fresh-install state; the preflight visits the Studio

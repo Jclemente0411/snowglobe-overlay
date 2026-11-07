@@ -1,6 +1,6 @@
 # SnowGlobe 0.22.0 release audit
 
-Audit date: November 7, 2026. Candidate: `com.snowglobe.overlay`, version **0.22.0 / 100029**, minimum API 26 and target API 36. Tested source: `2ac86d07bb15747e7b8686569c04acd3dd6bb534`. [Release workflow](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42383243986). Local compilation and host tests have passed; device execution and final signing remain in progress.
+Audit date: November 7, 2026. Candidate: `com.snowglobe.overlay`, version **0.22.0 / 100029**, minimum API 26 and target API 36. Local compilation and host tests have passed; the corrected device candidate and final signing remain in progress. The exact successful release source and artifact identity will be recorded after the gates complete.
 
 ## Scope delivered in source
 
@@ -20,8 +20,8 @@ Signing uses the existing upload key only after both Android 15 and Android 17 j
 
 ## Completed local verification
 
-- **90 JVM/Android-simulation tests passed**, with zero failures, errors or skips. These include 19 billing-controller cases, four premium-policy cases, six native snow-renderer cases and three artwork cases.
-- **41 release/readiness script tests passed.** Their package checks reject any input-method service, including disabled or renamed declarations.
+- **90 JVM/Android-simulation tests passed** on the initial integrated app, with zero failures, errors or skips. These include 19 billing-controller cases, four premium-policy cases, six native snow-renderer cases and three artwork cases. After the dependency correction, all **24 focused billing/policy/actual-SDK cases passed**, and the updated instrumentation APK compiled. The new SDK case brings the complete declared host suite to 91; its full rerun remains part of the next workflow.
+- **43 release/readiness script tests passed.** Their package checks reject any input-method service, including disabled or renamed declarations, and inherited networking/diagnostic-transport components.
 - Kotlin/Java compilation, debug lint, instrumentation APK packaging and the separate tap-probe APK build all completed successfully with JDK 17 and Gradle 8.11.1.
 - Debug lint reported **zero errors and 18 warnings**. The warnings comprise eight `UseKtx`, three `ObsoleteSdkInt`, three `UseRequiresApi`, and one each of `SetTextI18n`, `ViewConstructor`, `MonochromeLauncherIcon` and `StaticFieldLeak`. The v33 adaptive icon includes its monochrome layer; the v26 fallback triggers the icon hint. The service's existing static live-instance reference is cleared in `onDestroy`. These are retained findings, not a claim of a warning-free lint report.
 - Reviewed all nine actual native renders: three portrait snow styles, landscape crystals, all four wallpapers and the launcher icon. Snow extends to the bottom edge in every rendered orientation, with visible size/depth differences. Artwork is complete and the icon remains centered and uncropped. The 4K export test verifies real 2160 × 3840 PNG output.
@@ -35,9 +35,19 @@ The Cloud browser's attempted Play Console access was rejected by automatic appr
 
 ## Initial device attempt
 
-The first 0.22.0 candidate's Android 15 job passed all three preliminary cases, then lost the entire emulator during the full suite after three completed cases. ADB reported that the device was absent and the emulator console port refused connections. The interrupted case had no assertion message or stack trace; captured guest logs did not show an app fatal exception at the interruption. This is an **incomplete, failed run**, not a passing app suite.
+The [first 0.22.0 candidate](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42383243986), source `2ac86d07bb15747e7b8686569c04acd3dd6bb534`, passed all three Android 15 preliminary cases, then lost the entire emulator during the full suite after three completed cases. ADB reported that the device was absent and the emulator console port refused connections. The interrupted case had no assertion message or stack trace; captured guest logs did not show an app fatal exception at the interruption. This is an **incomplete, failed run**, not a passing app suite.
 
 That attempt did not retain host kernel, cgroup or emulator-crash records, so the evidence cannot establish whether host memory pressure or a native emulator failure caused the loss. The next runner revision lowers only the instrumentation Gradle heap/worker budget and AVD RAM, and retains bounded host diagnostics before and after execution. These are resource-risk reduction and diagnostic corrections, not proof of an identified OOM defect. App tests, screenshot requirements and failure gates remain unchanged, and no app assertion is automatically retried.
+
+Android 17 completed all 37 original device cases in that first attempt: **35 passed, two failed, zero skipped**. Full-height snow, rotation, the actual system keyboard and wallpaper-gallery cases passed. The two failures exposed (1) a Plus UI test that inspected an enabled Text descendant rather than its disabled Button ancestor, and (2) real network permissions inherited from Billing's DataTransport dependencies. The corrected UI test examines and touches the actual disabled control, checks that checkout does not open, and captures failures while the sheet is still present. The privacy correction retains SDK classes and removes the diagnostic backend/upload components and their network permissions together; actual SDK and scheduler tests are required. See [dependency isolation](BILLING_DEPENDENCY_ISOLATION.md).
+
+## Emulator diagnosis and corrected gates
+
+The [second candidate](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42384417082), source `f592905f4ac095ea4db505dc7a53ba78507f4d59`, retained the missing host diagnostics. Android 15 again lost the emulator during preliminary scene discovery. This time `coredumpctl` recorded **SIGSEGV in qemu-system-x86_64-headless** (Android Emulator 37.2.13.0). Host available memory exceeded 11 GiB before execution and all retained cgroup OOM counters were zero. Memory exhaustion is not supported as the cause of that run. The captured record proves a host native emulator crash but does not identify its crashing subsystem.
+
+The workflow now uses the current `-gpu software` selector instead of `swiftshader_indirect`, which Google documents as deprecated. AVD memory is restored to 4 GiB, the required minimum for API 37 phone images. Bounded coredump metadata/stack capture is retained without copying the 1.1 GiB core. This is a supported runner configuration correction; a fresh complete suite is still required to establish that it resolves the observed failure. References: [graphics modes](https://developer.android.com/studio/run/emulator-acceleration), [emulator release notes](https://developer.android.com/studio/releases/emulator).
+
+The corrected device suite has **38 cases, four preliminary cases and 11 required screenshots per Android version**. The installed-package permission check and actual Billing SDK startup/read-only-query/telemetry-rejection smoke now run during preflight, before the long UI suite. Fresh app data is restored before running the complete suite. No purchase is launched, no assertion is waived, and signing remains blocked until both full suites pass.
 
 ## Evidence to record after completion
 

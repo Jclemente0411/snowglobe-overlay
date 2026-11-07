@@ -27,6 +27,8 @@ capture processes.txt ps -eo pid,ppid,comm,rss,vsz,pcpu,pmem,etimes --sort=-rss
 timeout 5s sudo -n dmesg --ctime 2>&1 | tail -n 400 | head -c 262144 > "$output/kernel.txt" || true
 capture kernel-journal.txt sudo -n journalctl -k --since '-20 min' --no-pager -n 400
 capture coredumps.txt sudo -n coredumpctl --no-pager --no-legend list --since '-20 min'
+capture emulator-coredump-info.txt sudo -n coredumpctl --no-pager info --since '-20 min' \
+  "${ANDROID_HOME:-/usr/local/lib/android/sdk}/emulator/qemu/linux-x86_64/qemu-system-x86_64-headless"
 
 timeout 10s python3 - "$output" <<'PY' || true
 import getpass

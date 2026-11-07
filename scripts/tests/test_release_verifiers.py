@@ -141,6 +141,13 @@ class ManifestVerificationTest(unittest.TestCase):
     def setUp(self):
         self.meta = {"applicationId": "com.snowglobe.overlay", "versionCode": 100029, "versionName": "0.22.0", "targetSdk": 36}
         self.manifest = ET.parse(SCRIPTS.parent / "app/src/main/AndroidManifest.xml").getroot()
+        # This fixture stands in for a merged manifest: source removal directives do not
+        # become packaged permissions/components. The production verifier never ignores
+        # a real compiled permission, even if an unexpected tools attribute is present.
+        for parent in self.manifest.iter():
+            for child in list(parent):
+                if child.get("{http://schemas.android.com/tools}node") == "remove":
+                    parent.remove(child)
         self.a = manifest_check.ANDROID
         self.manifest.set("package", self.meta["applicationId"])
         self.manifest.set(self.a + "versionCode", "100029")
@@ -153,6 +160,24 @@ class ManifestVerificationTest(unittest.TestCase):
     def test_sdk_qualified_internet_permission_fails(self):
         ET.SubElement(self.manifest, "uses-permission-sdk-23", {self.a + "name": "android.permission.INTERNET"})
         with self.assertRaisesRegex(ValueError, "INTERNET"):
+            manifest_check.verify(self.meta, self.manifest)
+
+    def test_transitive_network_state_permission_fails(self):
+        for removal_marker in (False, True):
+            with self.subTest(removal_marker=removal_marker):
+                manifest = copy.deepcopy(self.manifest)
+                attributes = {self.a + "name": "android.permission.ACCESS_NETWORK_STATE"}
+                if removal_marker:
+                    attributes["{http://schemas.android.com/tools}node"] = "remove"
+                ET.SubElement(manifest, "uses-permission", attributes)
+                with self.assertRaisesRegex(ValueError, "ACCESS_NETWORK_STATE"):
+                    manifest_check.verify(self.meta, manifest)
+
+    def test_transport_cannot_return_without_its_network_permission(self):
+        ET.SubElement(self.manifest.find("application"), "service", {
+            self.a + "name": "com.google.android.datatransport.runtime.backends.TransportBackendDiscovery",
+            self.a + "enabled": "false"})
+        with self.assertRaisesRegex(ValueError, "diagnostic transport component"):
             manifest_check.verify(self.meta, self.manifest)
 
     def test_billing_permission_is_required_for_the_lifetime_upgrade(self):

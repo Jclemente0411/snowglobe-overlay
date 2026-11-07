@@ -62,11 +62,13 @@ jobs:
           profile: pixel_6
           avd-name: test
           disk-size: 4096M
-          ram-size: 3072M
+          # API 37 phone images require at least 4 GiB; the host has ample headroom.
+          ram-size: 4096M
           heap-size: 512M
           emulator-boot-timeout: 900
           disable-animations: false
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          # The indirect mode is deprecated. Use the current software backend selector.
+          emulator-options: -no-window -gpu software -noaudio -no-boot-anim -camera-back none
           script: bash scripts/run_device_checks.sh
       - name: Retain host diagnostics even when emulator startup fails
         if: always()

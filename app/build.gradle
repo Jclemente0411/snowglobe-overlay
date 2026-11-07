@@ -58,6 +58,8 @@ android {
     }
 }
 dependencies {
+    // Manifest isolates this pinned SDK's telemetry; retain its complete class graph.
+    // Actual-SDK JVM and ART tests must pass again before changing this version.
     implementation 'com.android.billingclient:billing:9.1.0'
     implementation platform('androidx.compose:compose-bom:2025.05.01')
     implementation 'androidx.activity:activity-compose:1.10.1'

@@ -18,7 +18,7 @@ Use JDK 17, Android SDK 36 and Gradle 8.11.1:
 gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :tap-probe:assembleDebug
 ```
 
-The release workflow verifies every declared device test and required screenshot on Android 15 and Android 17 before signing an AAB with the existing upload key. The compiled manifest gate rejects all input method services, requires the protected wallpaper/tile services, and checks the Billing permission. It also validates the bundle, signing certificate, native 16 KB layout and generated APK alignment.
+The release workflow verifies every declared device test and required screenshot on Android 15 and Android 17 before signing an AAB with the existing upload key. The compiled manifest gate rejects all input method services and diagnostic transport upload components, requires the protected wallpaper/tile services, and checks Billing and network permissions. It also validates the bundle, signing certificate, native 16 KB layout and generated APK alignment. The actual Billing SDK is exercised in the short device preflight as well as the complete suite; see [dependency isolation](docs/BILLING_DEPENDENCY_ISOLATION.md).
 
 Set the genuine Google Play licensing RSA public key as GitHub Actions variable `PLAY_BILLING_PUBLIC_KEY` or local Gradle property `playBillingPublicKey`. Invalid nonempty keys fail the build. An empty key is permitted for a free build, clearly recorded as `commerce-not-configured`. This is separate from the existing private upload keystore, which must never be replaced for this app.
 

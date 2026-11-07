@@ -46,5 +46,15 @@ public final class EffectsOnlyPackageTest {
         ServiceInfo overlay=manager.getServiceInfo(new ComponentName(context,EffectsService.class),0);
         assertTrue(overlay.enabled);assertFalse("External apps must not control the overlay service",overlay.exported);
         assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,overlay.getForegroundServiceType());
+        String[] permissions=manager.getPackageInfo(context.getPackageName(),PackageManager.GET_PERMISSIONS).requestedPermissions;
+        assertNotNull(permissions);boolean billing=false;
+        for(String permission:permissions){
+            assertNotEquals("SnowGlobe must not acquire network access from an SDK",
+                "android.permission.INTERNET",permission);
+            assertNotEquals("SnowGlobe must not acquire network-state access from an SDK",
+                "android.permission.ACCESS_NETWORK_STATE",permission);
+            if("com.android.vending.BILLING".equals(permission))billing=true;
+        }
+        assertTrue("Purchases must retain the Play Billing permission",billing);
     }
 }

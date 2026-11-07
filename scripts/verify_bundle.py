@@ -76,8 +76,14 @@ def verify(meta, manifest):
     for permission in ("SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_SPECIAL_USE", "RECEIVE_BOOT_COMPLETED"):
         require("android.permission." + permission in permissions, "Missing permission: " + permission)
     require("com.android.vending.BILLING" in permissions, "Missing Google Play Billing permission")
-    for forbidden in ("android.permission.INTERNET", "android.permission.PACKAGE_USAGE_STATS"):
+    for forbidden in ("android.permission.INTERNET", "android.permission.ACCESS_NETWORK_STATE",
+                      "android.permission.PACKAGE_USAGE_STATS"):
         require(forbidden not in permissions, "Unexpected permission: " + forbidden)
+    # Billing's optional diagnostic transport must not return through a transitive SDK update.
+    for element in app:
+        if element.tag in ("activity", "service", "receiver", "provider"):
+            require(not component_name(element, package).startswith("com.google.android.datatransport."),
+                    "Unexpected diagnostic transport component: " + component_name(element, package))
     require(not any(s.get(ANDROID + "permission") == "android.permission.BIND_ACCESSIBILITY_SERVICE" for s in app.findall("service")),
             "Unexpected accessibility service")
     receiver = component("receiver", "EffectsStartupReceiver")
