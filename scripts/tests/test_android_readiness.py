@@ -33,13 +33,31 @@ class AvdMetadataTest(unittest.TestCase):
 
     def test_android_zero_is_rejected_even_when_image_path_is_correct(self):
         with tempfile.TemporaryDirectory() as folder:
+            path = self.fixture(folder, "android-0")
             with self.assertRaisesRegex(ValueError, "Invalid Android API"):
-                avd.verify(self.fixture(folder, "android-0"), "test", "37.0")
+                avd.verify(path, "test", "37.0", path / "evidence")
+            self.assertEqual((path / "test.ini").read_bytes(), (path / "evidence/avd.ini").read_bytes())
+            self.assertEqual((path / "test.avd/config.ini").read_bytes(),
+                             (path / "evidence/avd-config.ini").read_bytes())
+
+    def test_emulator_whitespace_around_property_keys_and_values_is_accepted(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = self.fixture(folder, "android-35", "android-35")
+            root = f"avd.ini.encoding = UTF-8\r\npath = {path / 'test.avd'}  \r\ntarget = android-35\r\n"
+            config = (" # ignored = comment\r\nAvdId = test\r\n"
+                      "image.sysdir.1 = /usr/local/lib/android/sdk/system-images/android-35/google_apis/x86_64/  \r\n")
+            (path / "test.ini").write_bytes(root.encode())
+            (path / "test.avd/config.ini").write_bytes(config.encode())
+            avd.verify(path, "test", "35", path / "evidence")
+            self.assertEqual(config.encode(), (path / "evidence/avd-config.ini").read_bytes())
 
     def test_correct_target_cannot_hide_wrong_system_image(self):
         with tempfile.TemporaryDirectory() as folder:
+            path = self.fixture(folder, image="android-35")
             with self.assertRaisesRegex(ValueError, "system image"):
-                avd.verify(self.fixture(folder, image="android-35"), "test", "37.0")
+                avd.verify(path, "test", "37.0", path / "evidence")
+            self.assertEqual((path / "test.avd/config.ini").read_bytes(),
+                             (path / "evidence/avd-config.ini").read_bytes())
 
 
 READY = {

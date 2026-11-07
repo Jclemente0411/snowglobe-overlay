@@ -13,32 +13,37 @@ def api_level(value):
 
 
 def properties(path):
-    return dict(line.strip().split("=", 1) for line in path.read_text().splitlines()
-                if "=" in line and not line.lstrip().startswith(("#", ";")))
+    values = {}
+    for line in path.read_text().splitlines():
+        if "=" in line and not line.lstrip().startswith(("#", ";")):
+            key, value = line.split("=", 1)
+            values[key.strip()] = value.strip()
+    return values
 
 
 def verify(avd_home, name, expected_api, evidence=None):
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", name):
         raise ValueError("Invalid AVD name")
     root_ini = avd_home / (name + ".ini")
+    if evidence is not None:
+        evidence.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root_ini, evidence / "avd.ini")
     root = properties(root_ini)
-    expected = api_level(expected_api)
-    target = root.get("target", "")
-    if api_level(target) != expected:
-        raise ValueError(f"AVD target {target} does not match expected Android {expected_api}")
     avd_path = Path(root.get("path", ""))
     if not avd_path.is_absolute():
         raise ValueError("AVD root metadata must contain its absolute path")
     config_path = avd_path / "config.ini"
+    if evidence is not None:
+        shutil.copyfile(config_path, evidence / "avd-config.ini")
     config = properties(config_path)
+    expected = api_level(expected_api)
+    target = root.get("target", "")
+    if api_level(target) != expected:
+        raise ValueError(f"AVD target {target} does not match expected Android {expected_api}")
     image = config.get("image.sysdir.1", "").replace("\\", "/")
     match = re.search(r"(?:^|/)system-images/(android-[^/]+)(?:/|$)", image)
     if not match or api_level(match[1]) != expected:
         raise ValueError(f"AVD system image {image} does not match expected Android {expected_api}")
-    if evidence is not None:
-        evidence.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(root_ini, evidence / "avd.ini")
-        shutil.copyfile(config_path, evidence / "avd-config.ini")
     print(f"Verified AVD {name}: target={target}, image={image}")
 
 

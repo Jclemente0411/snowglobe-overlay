@@ -3,7 +3,7 @@
 set -euo pipefail
 status=0
 # A retry must not inherit successful reports or screenshots from an earlier run.
-rm -rf qa-screenshots app/build/outputs/androidTest-results/connected
+rm -rf qa-screenshots app/build/outputs/androidTest-results/connected app/build/reports/keyboard-preflight
 mkdir -p qa-screenshots
 # Retain system failures even when readiness or APK installation fails before tests.
 logcat_pid=''
@@ -44,15 +44,50 @@ adb shell svc power stayon true
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
 adb shell settings put secure show_ime_with_hard_keyboard 0
-adb shell rm -rf /sdcard/Android/data/com.snowglobe.overlay/files/screenshots
+timeout 15s adb shell rm -rf /sdcard/Android/data/com.snowglobe.overlay/files/screenshots
 probe=tap-probe/build/outputs/apk/debug/tap-probe-debug.apk
 if [ ! -s "$probe" ]; then
   echo '::error::The separate-app keyboard/touch probe was not built'
   exit 1
 fi
 adb install -r "$probe"
-gradle --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :app:connectedDebugAndroidTest || status=$?
-if ! adb pull /sdcard/Android/data/com.snowglobe.overlay/files/screenshots qa-screenshots; then
+# Fail early on the real cross-app typing path, then run the complete suite again.
+# Keep preliminary evidence outside qa-screenshots and connected results so it
+# cannot satisfy the full-suite gate or duplicate required screenshot names.
+preflight_dir=app/build/reports/keyboard-preflight
+mkdir -p "$preflight_dir"
+set +e
+gradle --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.KeyboardSmokeTest \
+  :app:connectedDebugAndroidTest --rerun 2>&1 | tee "$preflight_dir/gradle.log"
+preflight_pipeline=("${PIPESTATUS[@]}")
+set -e
+preflight_status=${preflight_pipeline[0]}
+if [ "$preflight_status" -eq 0 ] && [ "${preflight_pipeline[1]}" -ne 0 ]; then preflight_status=1; fi
+if [ -d app/build/outputs/androidTest-results/connected ]; then
+  cp -a app/build/outputs/androidTest-results/connected "$preflight_dir/results" || true
+fi
+if [ -d app/build/reports/androidTests/connected ]; then
+  cp -a app/build/reports/androidTests/connected "$preflight_dir/html" || true
+fi
+timeout 30s adb pull /sdcard/Android/data/com.snowglobe.overlay/files/screenshots "$preflight_dir/screenshots" || true
+if [ "$preflight_status" -ne 0 ]; then
+  echo '::error::Keyboard preflight failed; its reports and screenshots are preserved'
+  exit "$preflight_status"
+fi
+# Restore the original fresh-install state; the preflight changes preferences
+# and leaves typed text in the separate probe activity.
+for test_package in com.snowglobe.overlay com.snowglobe.taptest; do
+  clear_result=$(timeout 15s adb shell pm clear "$test_package" | tr -d '\r')
+  if [ "$clear_result" != Success ]; then
+    echo "::error::Could not reset CI test app $test_package: $clear_result"
+    exit 1
+  fi
+done
+rm -rf app/build/outputs/androidTest-results/connected app/build/reports/androidTests/connected
+timeout 15s adb shell rm -rf /sdcard/Android/data/com.snowglobe.overlay/files/screenshots
+gradle --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :app:connectedDebugAndroidTest --rerun || status=$?
+if ! timeout 30s adb pull /sdcard/Android/data/com.snowglobe.overlay/files/screenshots qa-screenshots; then
   echo '::error::UI screenshot evidence was not collected'
   if [ "$status" -eq 0 ]; then status=1; fi
 fi

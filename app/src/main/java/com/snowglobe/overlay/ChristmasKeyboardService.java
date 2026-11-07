@@ -124,8 +124,9 @@ public final class ChristmasKeyboardService extends InputMethodService {
         if((modes&InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS)!=0)return true;
         if(selectionStart<0||selectionStart!=selectionEnd)return false;
         if(selectionStart==0)return true;
+        // Android reports CAP_WORDS at paragraph starts even for a CAP_SENTENCES editor.
         return info!=null&&selectionStart==info.initialSelStart&&selectionEnd==info.initialSelEnd&&
-            (info.initialCapsMode&modes)!=0;
+            info.initialCapsMode!=0;
     }
     private final Runnable refreshCaps=()->{
         if(!inputViewActive||keyboard==null)return;
@@ -141,7 +142,8 @@ public final class ChristmasKeyboardService extends InputMethodService {
         capsWorker.execute(()->{
             if(generation!=capsGeneration)return;
             final boolean enabled;
-            try{enabled=(connection.getCursorCapsMode(modes)&modes)!=0;}
+            // The returned recommendation can differ from the requested mode at paragraph starts.
+            try{enabled=connection.getCursorCapsMode(modes)!=0;}
             catch(RuntimeException unavailable){return;}
             if(generation!=capsGeneration)return;
             capsHandler.post(()->{

@@ -5,6 +5,10 @@ import android.content.SharedPreferences;
 import android.os.SystemClock;
 import android.graphics.Rect;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.platform.app.InstrumentationRegistry;
@@ -52,6 +56,7 @@ public final class KeyboardSmokeTest {
         if(q==null){
             device.takeScreenshot(new File(images,"21-missing-virtual-key.png"));
             device.dumpWindowHierarchy(new File(images,"21-keyboard-accessibility.xml"));
+            captureImeMetadata(images);
         }
         assertNotNull("SnowGlobe keyboard key Q must be visible",q);
         UiObject2 space=device.wait(Until.findObject(By.text("space")),2000);
@@ -90,5 +95,15 @@ public final class KeyboardSmokeTest {
         SystemClock.sleep(250);
         assertTrue("Backspace must undo autocorrect",field.getText().equalsIgnoreCase("teh"));
         device.takeScreenshot(new File(images,"23-autocorrect-and-rgb.png"));
+    }
+    private void captureImeMetadata(File images) throws Exception {
+        // Retain only editor flags, cursor offsets and lifecycle state; never retain editor text.
+        String dump=device.executeShellCommand("dumpsys input_method");
+        Matcher fields=Pattern.compile("(?:inputType|imeOptions|initialSelStart|initialSelEnd|initialCapsMode|mInputStarted|mInputViewStarted|mDecorViewVisible|mShowInputRequested|mCurMethodId)=[^\\s,;}]+").matcher(dump);
+        StringBuilder metadata=new StringBuilder();
+        while(fields.find())metadata.append(fields.group()).append('\n');
+        try(FileOutputStream output=new FileOutputStream(new File(images,"21-ime-metadata.txt"))){
+            output.write(metadata.toString().getBytes(StandardCharsets.UTF_8));
+        }
     }
 }
