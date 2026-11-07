@@ -30,12 +30,15 @@ jobs:
             api: '35'
             emulator_build: '15917651'
             emulator_version: '37.1.11'
+            # Supported GLES isolation: https://developer.android.com/studio/run/emulator-troubleshooting
+            emulator_graphics: '-gpu swiftshader -feature -Vulkan'
             # Published Linux archive SHA256 (provenance; the action downloads over HTTPS):
             # 95771e0ae431897b2a4bd2d97fa095f29a8b0624a7b216baf529f9306161c266
           - android: '17'
             api: '37.0'
             emulator_build: '16740729'
             emulator_version: '37.2.13'
+            emulator_graphics: '-gpu software'
             # Published Linux archive SHA256:
             # cbc7c3cfb83220b8a0f9c513fdab557712e74d339ec19ddffa43f23350ae9bdd
     steps:
@@ -82,14 +85,8 @@ jobs:
           heap-size: 512M
           emulator-boot-timeout: 900
           disable-animations: false
-          # The indirect mode is deprecated. Use the current software backend selector.
-          emulator-options: -no-window -gpu software -noaudio -no-boot-anim -camera-back none
-          pre-emulator-launch-script: |
-            mkdir -p app/build/reports/emulator-host/pinned-emulator
-            cp "$ANDROID_HOME/emulator/source.properties" app/build/reports/emulator-host/pinned-emulator/source.properties
-            python3 -c 'import os,pathlib,sys; p=pathlib.Path(os.environ["ANDROID_HOME"])/"emulator"/"source.properties"; fields=dict((k.strip(),v.strip()) for k,v in (line.split("=",1) for line in p.read_text().splitlines() if "=" in line)); fields.get("Pkg.Revision")==os.environ["SNOWGLOBE_EMULATOR_VERSION"] or sys.exit("Unexpected emulator package revision: "+str(fields.get("Pkg.Revision")))'
-            "$ANDROID_HOME/emulator/emulator" -version > app/build/reports/emulator-host/pinned-emulator/binary-version.txt 2>&1
-            grep -F "Android emulator version ${SNOWGLOBE_EMULATOR_VERSION}.0 (build_id ${SNOWGLOBE_EMULATOR_BUILD})" app/build/reports/emulator-host/pinned-emulator/binary-version.txt
+          # Keep Android 17's backend; isolate Android 15's host native crash via GLES only.
+          emulator-options: -no-window ${{ matrix.emulator_graphics }} -noaudio -no-boot-anim -camera-back none
           script: bash scripts/run_device_checks.sh
       - name: Retain host diagnostics even when emulator startup fails
         if: always()

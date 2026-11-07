@@ -28,6 +28,29 @@ trap 'capture_diagnostics "$?"' EXIT
 timeout 30s bash scripts/capture_emulator_host_diagnostics.sh device-start || true
 adb logcat -b all -v threadtime > qa-screenshots/logcat-live.log 2>&1 &
 logcat_pid=$!
+# The action can log a pre-launch hook failure and still boot. Validate the pin
+# here under errexit and the diagnostic trap, using the headless executable.
+if [ -n "${SNOWGLOBE_EMULATOR_VERSION:-}${SNOWGLOBE_EMULATOR_BUILD:-}" ]; then
+  : "${SNOWGLOBE_EMULATOR_VERSION:?Expected emulator version is required}"
+  : "${SNOWGLOBE_EMULATOR_BUILD:?Expected emulator build is required}"
+  emulator_evidence=app/build/reports/emulator-host/pinned-emulator
+  mkdir -p "$emulator_evidence"
+  cp "${ANDROID_HOME:?Android SDK directory is required}/emulator/source.properties" "$emulator_evidence/source.properties"
+  python3 - <<'PY'
+import os
+from pathlib import Path
+
+properties = Path(os.environ['ANDROID_HOME']) / 'emulator' / 'source.properties'
+fields = dict((key.strip(), value.strip()) for key, value in
+              (line.split('=', 1) for line in properties.read_text().splitlines() if '=' in line))
+for key, expected in (('Pkg.Revision', os.environ['SNOWGLOBE_EMULATOR_VERSION']),
+                      ('Pkg.BuildId', os.environ['SNOWGLOBE_EMULATOR_BUILD'])):
+    if fields.get(key) != expected:
+        raise SystemExit(f'Unexpected emulator {key}: {fields.get(key)!r}; expected {expected}')
+PY
+  timeout 15s "$ANDROID_HOME/emulator/emulator" -no-window -version > "$emulator_evidence/binary-version.txt" 2>&1
+  grep -F "Android emulator version ${SNOWGLOBE_EMULATOR_VERSION}.0 (build_id ${SNOWGLOBE_EMULATOR_BUILD})" "$emulator_evidence/binary-version.txt"
+fi
 if [ -n "${SNOWGLOBE_AVD_NAME:-}" ]; then
   python3 scripts/verify_android_avd.py --avd-home "${ANDROID_AVD_HOME:-$HOME/.android/avd}" \
     --name "$SNOWGLOBE_AVD_NAME" --expected-api "${EXPECTED_ANDROID_API:?Expected API is required for AVD verification}" --evidence qa-screenshots
