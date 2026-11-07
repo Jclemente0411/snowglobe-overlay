@@ -54,8 +54,14 @@ def verify(meta, manifest):
 
     bound_service("SnowWallpaperService", "android.permission.BIND_WALLPAPER",
                   "android.service.wallpaper.WallpaperService", "android.service.wallpaper")
-    bound_service("ChristmasKeyboardService", "android.permission.BIND_INPUT_METHOD",
-                  "android.view.InputMethod", "android.view.im")
+    # Removing the keyboard is a release contract, including disabled or renamed IMEs.
+    for service in app.findall("service"):
+        require(service.get(ANDROID + "permission") != "android.permission.BIND_INPUT_METHOD"
+                and "android.view.InputMethod" not in actions(service)
+                and not any(m.get(ANDROID + "name") == "android.view.im" for m in service.findall("meta-data")),
+                "Unexpected input method service: " + component_name(service, package))
+        require(component_name(service, package) != package + ".ChristmasKeyboardService",
+                "Removed keyboard service is still packaged")
     bound_service("SnowGlobeTileService", "android.permission.BIND_QUICK_SETTINGS_TILE",
                   "android.service.quicksettings.action.QS_TILE")
     effects = component("service", "EffectsService")
@@ -69,7 +75,8 @@ def verify(meta, manifest):
                    if element.tag in ("uses-permission", "uses-permission-sdk-23", "uses-permission-sdk-m")}
     for permission in ("SYSTEM_ALERT_WINDOW", "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_SPECIAL_USE", "RECEIVE_BOOT_COMPLETED"):
         require("android.permission." + permission in permissions, "Missing permission: " + permission)
-    for forbidden in ("com.android.vending.BILLING", "android.permission.INTERNET", "android.permission.PACKAGE_USAGE_STATS"):
+    require("com.android.vending.BILLING" in permissions, "Missing Google Play Billing permission")
+    for forbidden in ("android.permission.INTERNET", "android.permission.PACKAGE_USAGE_STATS"):
         require(forbidden not in permissions, "Unexpected permission: " + forbidden)
     require(not any(s.get(ANDROID + "permission") == "android.permission.BIND_ACCESSIBILITY_SERVICE" for s in app.findall("service")),
             "Unexpected accessibility service")

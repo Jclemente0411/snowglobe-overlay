@@ -72,7 +72,8 @@ public class ReleaseStabilityRegressionTest {
         try {
             prefs.edit().putInt("density",100).putInt("snowVisibility",100)
                 .putInt("qualityMode",3).putBoolean("lights",true).commit();
-            SceneRenderer renderer=new SceneRenderer(2.5f,new SceneSettings(prefs));
+            // Paid renderer coverage is explicit in this fixture, never a release preference bypass.
+            SceneRenderer renderer=new SceneRenderer(2.5f,new SceneSettings(prefs,true));
             renderer.resize(320,680,50,36,2.5f);
             for(int i=0;i<10;i++) {
                 SceneCatalog.Preset scene=SceneCatalog.presets().get(i%SceneCatalog.presets().size());
@@ -81,7 +82,7 @@ public class ReleaseStabilityRegressionTest {
                     .putInt("snowShade",i%3).putBoolean("edgeOnly",i%2==0)
                     .putInt("density",i%2==0?100:42)
                     .putBoolean("reduceMotion",i==7).commit();
-                renderer.apply(new SceneSettings(prefs));
+                renderer.apply(new SceneSettings(prefs,true));
                 boolean wallpaper=i%2==1;
                 renderer.setWallpaper(wallpaper);
                 renderer.resize(320,wallpaper?680:460,50,36,2.5f);
@@ -95,8 +96,8 @@ public class ReleaseStabilityRegressionTest {
                 renderer.resetClock();
             }
             assertEquals(1000,frames);
-            assertFalse(PremiumPolicy.PAYWALL_VISIBLE);
-            assertFalse(PremiumPolicy.mayLaunchCheckout());
+            assertTrue(PremiumPolicy.PAYWALL_VISIBLE);
+            assertFalse("Drawing scenes must not grant a paid entitlement",HolidayPlusEntitlement.isOwned(context,""));
             assertFalse(EffectsService.isActive());
         } finally {
             Log.i(TAG,"drawnFrames="+frames+" totalElapsedMs="+

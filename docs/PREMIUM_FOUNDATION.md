@@ -1,21 +1,9 @@
-# Dormant Holiday Plus foundation
+# Holiday Plus implementation
 
-Approved commercial direction: USD 2.99 one-time non-consumable holiday_plus_lifetime, no subscription. A future checkout must show the localized price returned by Google Play, not hardcode $2.99 for all regions.
+The dormant commerce foundation from 0.21.6 has been replaced in 0.22.0 by a real Google Play Billing integration with signed purchase verification, acknowledgement, restoration and enforced feature boundaries.
 
-This beta ships NO purchase UI, BillingClient dependency, billing permission, checkout launcher, networking or feature restrictions. PremiumPolicy is a tested policy/contract only; CHECKOUT_ENABLED=false, PAYWALL_VISIBLE=false and BETA_UNLOCKED=true. Changing a preference cannot activate payments. Unit and instrumentation tests require these values, and the signed-bundle gate rejects billing/network permissions.
+The agreed product remains **SnowGlobe Holiday Plus**, product ID `holiday_plus_lifetime`, **USD 2.99 one time**, inside `com.snowglobe.overlay`. No separate paid app or subscription has been created.
 
-Before enabling commerce in a separate release:
-- Configure and activate the matching Play Console one-time product and USD price.
-- Implement BillingClient and reconnect/query lifecycle; retrieve localized ProductDetails.
-- Verify purchases before granting permanent entitlements; prefer a server verifier with refund/revocation notifications. Do not trust a local boolean.
-- Handle cancellation, unavailable product, already-owned, network failure and PENDING without charging again or granting prematurely.
-- Acknowledge valid PURCHASED transactions, never consume this lifetime product; restore from the owning Play account after reinstall.
-- Add receipt/refund/revocation tests and tester accounts. Internal-track membership alone is not license-tester configuration.
-- Gate paywall rendering and checkout separately; beta testers retain access while commerce is disabled.
+See [HOLIDAY_PLUS_SETUP.md](HOLIDAY_PLUS_SETUP.md) for implementation details, exact Console fields, the licensing public-key requirement, testing and current activation limitations. See [RELEASE_READINESS_0220.md](RELEASE_READINESS_0220.md) for observed build results.
 
-References reviewed 2026-11-02:
-https://developer.android.com/google/play/billing/integrate
-https://developer.android.com/google/play/billing/test
-https://support.google.com/googleplay/android-developer/answer/6062777
-
-No real payment or end-to-end Google Play purchase test has been performed by this beta. The owner is not required to pay to test it.
+An empty verification key deliberately leaves checkout disabled. A completed build must not be described as a live paid release until the genuine product/key and Play license-test purchase have been verified.

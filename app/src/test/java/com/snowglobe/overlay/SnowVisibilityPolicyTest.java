@@ -22,6 +22,8 @@ public class SnowVisibilityPolicyTest {
         assertEquals(54,SnowVisualPolicy.particleCount(120,true,false,false,false,true));
         assertEquals(48,SnowVisualPolicy.particleCount(0,false,false,true,false,false));
         assertEquals(64,SnowVisualPolicy.particleCount(0,false,false,false,true,false));
+        assertEquals("A zero-density top band must also stop drawing",0,
+            SnowVisualPolicy.particleCount(0,true,false,false,false,true));
     }
     @Test public void bandGeometryIsWithinWindowAndDoesNotMutateSystemThreshold(){
         assertEquals(-1,OverlayWindowPolicy.height(2400,3f,false));

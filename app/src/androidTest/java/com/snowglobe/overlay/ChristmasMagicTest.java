@@ -79,7 +79,7 @@ public class ChristmasMagicTest {
             assertTrue("Christmas scene section must be visible",revealHomeSection("Christmas magic"));
             screenshot("17-curated-scenes.png");
             assertFalse(EffectsService.isActive());
-            assertFalse(PremiumPolicy.mayLaunchCheckout());
+            assertFalse("Discovering scenes must not bypass receipt verification",PremiumPolicy.allFeaturesAvailable());
         }
     }
     @Test public void sceneSelectionIsDeterministicAndDoesNotTurnEffectsOn(){
@@ -98,12 +98,13 @@ public class ChristmasMagicTest {
         Bitmap bitmap=Bitmap.createBitmap(400,860,Bitmap.Config.ARGB_8888);
         Canvas canvas=new Canvas(bitmap);
         try{
-            SceneRenderer renderer=new SceneRenderer(2f,new SceneSettings(prefs));
+            // Renderer fixture: exercise paid decorations without granting an app entitlement.
+            SceneRenderer renderer=new SceneRenderer(2f,new SceneSettings(prefs,true));
             renderer.resize(400,860,34,0,2f);
             long time=1_000_000_000L;
             for(SceneCatalog.Preset preset:SceneCatalog.presets()){
                 assertTrue(SceneCatalog.apply(prefs,preset.name));
-                renderer.apply(new SceneSettings(prefs));
+                renderer.apply(new SceneSettings(prefs,true));
                 for(int frame=0;frame<12;frame++){
                     time+=16_666_667L;
                     renderer.advance(time);
@@ -137,7 +138,7 @@ public class ChristmasMagicTest {
                 assertTrue("Dark snow must draw",nonTransparent(bmp)>100);
                 assertTrue("Charcoal flakes must be darker than white flakes",luma(bmp)<bright);
                 assertFalse("Changing snow never starts the overlay",EffectsService.isActive());
-                assertFalse(PremiumPolicy.mayLaunchCheckout());
+                assertFalse("Snow settings never bypass paid entitlement verification",PremiumPolicy.allFeaturesAvailable());
             }finally{bmp.recycle();}
         }finally{p.edit().putInt("snowVisibility",100).putInt("snowShade",0).putBoolean("edgeOnly",false).commit();}
     }

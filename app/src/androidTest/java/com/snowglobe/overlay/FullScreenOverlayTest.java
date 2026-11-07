@@ -8,7 +8,6 @@ import android.graphics.Rect;
 import android.os.SystemClock;
 import android.provider.Settings;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inspector.WindowInspector;
 import androidx.test.core.app.ActivityScenario;
@@ -39,7 +38,7 @@ public final class FullScreenOverlayTest {
     private UiDevice device;
     private SharedPreferences prefs;
     private Map<String,?> saved;
-    private String oldIme,oldHardwareKeyboard;
+    private String oldIme,oldHardwareKeyboard,systemImePackage;
 
     @Before public void setup() throws Exception {
         context=ApplicationProvider.getApplicationContext();
@@ -145,25 +144,35 @@ public final class FullScreenOverlayTest {
         assertFalse(result,result.contains("Error"));
         assertNotNull(device.wait(Until.findObject(By.clazz("android.widget.EditText")),10000));
     }
-    private boolean visibleKeyboard(View root){
-        if(root instanceof FastKeyboardView&&root.isShown()&&root.getWindowVisibility()==View.VISIBLE&&root.getHeight()>0)return true;
-        if(root instanceof ViewGroup){
-            ViewGroup group=(ViewGroup)root;
-            for(int i=0;i<group.getChildCount();i++)if(visibleKeyboard(group.getChildAt(i)))return true;
+    private void selectSystemKeyboard() throws Exception {
+        String chosen=null;
+        for(String candidate:device.executeShellCommand("ime list -s").split("\\r?\\n")){
+            candidate=candidate.trim();
+            // The device supplies the user's keyboard; SnowGlobe no longer ships an IME.
+            if(!candidate.matches("[A-Za-z0-9_.$]+/[A-Za-z0-9_.$]+"))continue;
+            String packageName=candidate.substring(0,candidate.indexOf('/'));
+            if(packageName.equals(context.getPackageName()))continue;
+            if(chosen==null||candidate.equals(oldIme))chosen=candidate;
+            if(candidate.equals(oldIme))break;
         }
-        return false;
+        assertNotNull("A real non-SnowGlobe keyboard must be installed on the emulator",chosen);
+        systemImePackage=chosen.substring(0,chosen.indexOf('/'));
+        device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 1");
+        device.executeShellCommand("ime enable "+chosen);
+        device.executeShellCommand("ime set "+chosen);
+        assertEquals("The system IME must actually be selected",chosen,
+            device.executeShellCommand("settings get secure default_input_method").trim());
     }
     private void awaitKeyboard(boolean expected){
         long deadline=SystemClock.uptimeMillis()+10000;
         while(SystemClock.uptimeMillis()<deadline){
-            boolean[] shown={false};
-            InstrumentationRegistry.getInstrumentation().runOnMainSync(()->{
-                for(View root:WindowInspector.getGlobalWindowViews())if(visibleKeyboard(root)){shown[0]=true;break;}
-            });
-            if(shown[0]==expected)return;
+            // UiAutomator sees the separate IME process; WindowInspector only sees this app.
+            UiObject2 keyboard=device.findObject(By.pkg(systemImePackage));
+            boolean shown=keyboard!=null&&!keyboard.getVisibleBounds().isEmpty();
+            if(shown==expected)return;
             SystemClock.sleep(100);
         }
-        fail("Keyboard visibility did not become "+expected);
+        fail("System keyboard visibility did not become "+expected+" for "+systemImePackage);
     }
     @Test public void actualWindowAndSnowPixelsReachAllFourQuarters() throws Exception {
         try(ActivityScenario<StudioActivity> studio=ActivityScenario.launch(StudioActivity.class)){
@@ -197,9 +206,7 @@ public final class FullScreenOverlayTest {
             while(SystemClock.uptimeMillis()<deadline&&device.getDisplayHeight()<=device.getDisplayWidth())SystemClock.sleep(100);
             assertTrue(device.getDisplayHeight()>device.getDisplayWidth());
             awaitFullSize();
-            device.executeShellCommand("settings put secure show_ime_with_hard_keyboard 1");
-            device.executeShellCommand("ime enable com.snowglobe.overlay/.ChristmasKeyboardService");
-            device.executeShellCommand("ime set com.snowglobe.overlay/.ChristmasKeyboardService");
+            selectSystemKeyboard();
             UiObject2 field=device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000);assertNotNull(field);field.click();
             awaitKeyboard(true);awaitFullSize();assertSnowInEveryQuarter();capture("29-snow-with-keyboard.png");
             device.pressBack();awaitKeyboard(false);awaitFullSize();assertSnowInEveryQuarter();capture("30-snow-after-keyboard.png");

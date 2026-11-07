@@ -3,6 +3,20 @@ plugins {
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.compose'
 }
+def playBillingKey = providers.gradleProperty('playBillingPublicKey')
+    .orElse(providers.environmentVariable('PLAY_BILLING_PUBLIC_KEY')).orElse('').get().replaceAll('\\s', '')
+def commerceConfigured = false
+if (!playBillingKey.isEmpty()) {
+    try {
+        def verifiedKey = java.security.KeyFactory.getInstance('RSA').generatePublic(
+            new java.security.spec.X509EncodedKeySpec(java.util.Base64.decoder.decode(playBillingKey)))
+        if (!(verifiedKey instanceof java.security.interfaces.RSAPublicKey) || verifiedKey.modulus.bitLength() < 2048)
+            throw new IllegalArgumentException('Billing verification requires an RSA key of at least 2048 bits')
+        commerceConfigured = true
+    } catch (Exception invalidKey) {
+        throw new GradleException('PLAY_BILLING_PUBLIC_KEY must be the genuine RSA licensing public key from Play Console.', invalidKey)
+    }
+}
 android {
     namespace 'com.snowglobe.overlay'
     compileSdk 36
@@ -10,8 +24,9 @@ android {
         applicationId 'com.snowglobe.overlay'
         minSdk 26
         targetSdk 36
-        versionCode 100028
-        versionName '0.21.6'
+        versionCode 100029
+        versionName '0.22.0'
+        buildConfigField 'String', 'PLAY_BILLING_PUBLIC_KEY', groovy.json.JsonOutput.toJson(playBillingKey)
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     buildFeatures { compose true; buildConfig true }
@@ -43,6 +58,7 @@ android {
     }
 }
 dependencies {
+    implementation 'com.android.billingclient:billing:9.1.0'
     implementation platform('androidx.compose:compose-bom:2025.05.01')
     implementation 'androidx.activity:activity-compose:1.10.1'
     implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.7'
@@ -66,7 +82,9 @@ tasks.register('writeReleaseMetadata') {
             applicationId: android.defaultConfig.applicationId,
             versionCode: android.defaultConfig.versionCode,
             versionName: android.defaultConfig.versionName,
-            targetSdk: android.defaultConfig.targetSdkVersion.apiLevel
+            targetSdk: android.defaultConfig.targetSdkVersion.apiLevel,
+            billingProductId: 'holiday_plus_lifetime',
+            commerceConfigured: commerceConfigured
         ]))
     }
 }

@@ -19,7 +19,7 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     };
     public SnowView(Context context,SharedPreferences prefs){
         super(context);preferences=prefs;
-        renderer=new SceneRenderer(getResources().getDisplayMetrics().density,new SceneSettings(prefs));
+        renderer=new SceneRenderer(getResources().getDisplayMetrics().density,settingsSnapshot());
         power=new RenderPowerMonitor(context,()->{if(!powerInteractive())cancel();else {invalidate();updateSchedule();}});
         setWillNotDraw(false);
     }
@@ -36,8 +36,13 @@ public class SnowView extends View implements Choreographer.FrameCallback {
         updateSchedule();
     }
     public void refresh(){reload();}
+    /** Entitlement is read at snapshot boundaries only, never inside a frame. */
+    private SceneSettings settingsSnapshot(){
+        return new SceneSettings(preferences,
+            HolidayPlusEntitlement.isOwned(getContext(),BuildConfig.PLAY_BILLING_PUBLIC_KEY));
+    }
     private void reload(){
-        renderer.apply(new SceneSettings(preferences));power.read();resizeScene();invalidate();updateSchedule();
+        renderer.apply(settingsSnapshot());power.read();resizeScene();invalidate();updateSchedule();
     }
     @Override public void onAttachedToWindow(){super.onAttachedToWindow();preferences.registerOnSharedPreferenceChangeListener(changes);power.attach();reload();}
     @Override public void onDetachedFromWindow(){

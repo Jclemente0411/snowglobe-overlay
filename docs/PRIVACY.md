@@ -1,39 +1,23 @@
 # SnowGlobe privacy policy
 
-Updated November 6, 2026. Publisher: Jclemente0411. This policy covers the SnowGlobe Android app (com.snowglobe.overlay), including its optional holiday overlay, live wallpaper and Christmas keyboard.
+Updated November 7, 2026. Publisher: Jclemente0411. This policy covers SnowGlobe (com.snowglobe.overlay), its holiday overlay, live wallpaper, saved artwork and optional one-time Holiday Plus upgrade. This version does not provide a keyboard or process what you type in other apps.
 
-## Keyboard input
+Local settings and diagnostics. SnowGlobe stores visual preferences, saved scene names and settings, and whether you enabled effects in private app storage. It keeps limited local status information, such as service state, render or wake timestamps and error messages, for setup and troubleshooting. These records are not automatically uploaded.
 
-When you enable and select the SnowGlobe keyboard, it processes your keystrokes, the current selection and limited surrounding text supplied by the active text field to enter or edit text and provide local suggestions and autocorrection. It passes the text you enter to the app you are typing in. That app controls how it stores, uses or transmits that text under its own policy.
+Optional permissions. Display over other apps lets SnowGlobe draw decorations over supported screens; it does not let SnowGlobe read screen contents or notifications. A foreground service and notification provide ongoing effects and a pause control. Boot and app-update events may restore previously enabled effects when Android permits. Android separately controls live-wallpaper selection. SnowGlobe does not request contacts, location, camera or microphone access. Pause effects or revoke permissions in Android settings.
 
-## Typing privacy
+Holiday Plus purchases. The optional upgrade is a one-time Google Play purchase, not a subscription. Google Play handles payment, account and transaction information under its own terms and privacy policy. SnowGlobe queries Google Play for the upgrade product, localized price and ownership, verifies the signed purchase proof, and acknowledges completed purchases. Pending purchases do not unlock paid features. SnowGlobe does not receive your card details or ask you to sign in to a separate app account.
 
-The keyboard uses a bundled dictionary and temporary memory for the current word and correction state. It does not save a keystroke history, learn a personal dictionary or log typed text. Temporary typing state is discarded when the input session finishes. Suggestions and autocorrection are disabled for fields identified by Android as passwords or requesting no personalized learning. SnowGlobe does not transmit your typed text to the publisher or to a server.
+Purchase records and restoration. A signed purchase receipt and signature are stored in private, backup-excluded app storage to remember verified ownership when offline. The receipt may contain a Google Play order identifier, purchase token, product identifier, package name, purchase time and state. SnowGlobe does not upload that proof to a publisher-operated server or log purchase tokens. Restore purchases checks the Google Play account on the device. A successful ownership check can remove access after a refund or revocation; unavailable offline checks do not invent new ownership.
 
-## Local settings and diagnostics
+Network and third parties. SnowGlobe has no Internet permission, advertising, analytics SDK, automatic crash-reporting SDK or publisher-operated account or server. Billing communicates with the installed Google Play service, which handles its own network traffic. Opening a support link uses your browser and is governed by that service. SnowGlobe does not sell personal data.
 
-SnowGlobe saves appearance and keyboard preferences, your saved scene names and settings, and whether you enabled effects in private app storage. It also keeps limited local status information, such as service state, render or wake timestamps and error messages, to show setup status and diagnose failures. The app does not automatically upload these records. Keyboard input is not included in these diagnostic records.
+Wallpaper files. Artwork is generated on the device. When you save a wallpaper, Android asks you to choose its destination. SnowGlobe writes that selected image without requesting broad photo-library or storage access. Your selected document provider may sync it according to its own settings. The app does not automatically upload wallpapers.
 
-## Optional permissions
+Android backup and security. Settings, saved scenes and local status records may be backed up or transferred through Android and your configured backup provider. Purchase proofs are stored outside Android backup so a copied preference cannot grant an upgrade. After reinstalling, use Restore purchases with the owning Google Play account. The publisher does not operate or receive Android backups. Android and Google Play handle their own installation and system diagnostic information.
 
-Display over other apps lets SnowGlobe draw decorations over supported screens; it does not let SnowGlobe read those screens or your notifications. A foreground service and notification support ongoing effects and a pause control. Boot and app-update events can restore effects you previously enabled when Android permits. Android separately controls selection of the live wallpaper and keyboard. You can pause effects or revoke these choices in Android settings. SnowGlobe does not request access to contacts, location, camera or microphone.
+Retention and deletion. Settings and diagnostic records remain until replaced, cleared through Android app settings or removed by uninstalling. Saved scenes can be deleted in SnowGlobe. Purchase proof is removed on verified revocation, clearing storage or uninstalling. Saved wallpaper files remain in the destination you chose until you delete them there. Clearing or uninstalling may not delete existing provider backups, Google Play transaction records or exported files. There is no publisher-held SnowGlobe account to delete.
 
-## Network, accounts and purchases
+Privacy inquiries. Contact the publisher at https://github.com/Jclemente0411/snowglobe-overlay/issues. GitHub issues are public; do not include payment receipts, purchase tokens, passwords or other private information. The publisher uses information you choose to provide to respond or investigate, subject to GitHub hosting and retention.
 
-This build has no Internet permission, app-operated server, account sign-in, advertising, analytics SDK, automatic crash-reporting SDK, in-app purchases or billing integration. SnowGlobe does not sell personal data or send app usage or keyboard data to advertising or analytics providers. Opening an external link uses your browser or another app and is governed by that service's policy.
-
-## Android backup and security
-
-Local preferences and saved scenes use Android's private app storage. Android may back up or transfer this app data through your configured backup provider or device-transfer settings. Such backups may include scene names and local diagnostic preferences; they do not include a keyboard typing history because SnowGlobe does not save one. The publisher does not operate or receive those backups. Android, Google Play and your backup provider handle their own backup, installation and system diagnostic information under their settings and policies.
-
-## Retention and deletion
-
-Local settings, saved scenes and diagnostic preferences remain until you replace or delete them, clear SnowGlobe's app storage in Android settings, or uninstall the app. A saved scene can also be deleted in SnowGlobe. Clearing local storage or uninstalling may not remove a backup already held by Android or your backup provider, and a later reinstall or device transfer may restore backed-up settings. Manage those backups through your device and provider settings. There is no SnowGlobe account or developer-held keyboard history to delete.
-
-## Privacy inquiries
-
-Contact the publisher through https://github.com/Jclemente0411/snowglobe-overlay/issues. The publisher uses information you choose to provide there to respond to your question or investigate a problem. GitHub issues are public, so omit private typed content, passwords and other sensitive information. GitHub hosts those reports under its own privacy policy and retention controls.
-
-## Policy updates
-
-Changes to the app's data practices will be reflected in this policy and the in-app policy text with an updated date. This policy describes the current build; any future networking, purchases or other data-handling features must be reflected before they are released.
+Policy updates. Material changes to these data practices will appear in this policy and the in-app policy text with an updated date.

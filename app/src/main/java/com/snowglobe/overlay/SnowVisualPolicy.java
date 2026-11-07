@@ -2,7 +2,15 @@ package com.snowglobe.overlay;
 
 /** Snow color/visibility is an artistic choice; never alters touch-security window opacity. */
 public final class SnowVisualPolicy {
+    // Interleave a few near flakes among a denser distant field. Eleven is coprime
+    // with the decoration cadence, so every decorative type also gets real depth.
+    private static final int[] LAYERS={0,1,0,2,1,0,3,0,2,1,0};
+    private static final float[] DEPTH={.46f,.72f,1.04f,1.48f};
+    private static final int[] OPACITY={132,176,218,196};
     private SnowVisualPolicy(){}
+    public static int layer(int particle){return LAYERS[Math.floorMod(particle,LAYERS.length)];}
+    public static float depth(int particle){return DEPTH[layer(particle)];}
+    public static int opacity(int particle){return OPACITY[layer(particle)];}
     public static int color(int shade){
         if(shade==1)return 0xffbdcad6;  // Silver gray, softer on dark scenes
         if(shade==2)return 0xff253345;  // Charcoal, more visible over light apps
@@ -18,7 +26,7 @@ public final class SnowVisualPolicy {
         int n=Math.max(0,Math.min(128,nominal));
         if(wallpaperSnow)n=Math.max(n,48);
         if(wake)n=Math.max(n,64);
-        if(topBand)n=Math.max(1,Math.round(n*.45f));
+        if(topBand&&n>0)n=Math.max(1,Math.round(n*.45f));
         return Math.min(128,n);
     }
 }

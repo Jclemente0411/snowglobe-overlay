@@ -3,7 +3,7 @@
 set -euo pipefail
 status=0
 # A retry must not inherit successful reports or screenshots from an earlier run.
-rm -rf qa-screenshots app/build/outputs/androidTest-results/connected app/build/reports/keyboard-preflight
+rm -rf qa-screenshots app/build/outputs/androidTest-results/connected app/build/reports/release-preflight
 mkdir -p qa-screenshots
 # Retain system failures even when readiness or APK installation fails before tests.
 logcat_pid=''
@@ -47,18 +47,18 @@ adb shell settings put secure show_ime_with_hard_keyboard 0
 timeout 15s adb shell rm -rf /sdcard/Android/data/com.snowglobe.overlay/files/screenshots
 probe=tap-probe/build/outputs/apk/debug/tap-probe-debug.apk
 if [ ! -s "$probe" ]; then
-  echo '::error::The separate-app keyboard/touch probe was not built'
+  echo '::error::The separate-app overlay and system-keyboard probe was not built'
   exit 1
 fi
 adb install -r "$probe"
-# Fail early on cross-app typing and scene discovery, then run the complete suite.
+# Fail early on the installed effects-only package and scene discovery, then run the complete suite.
 # Keep preliminary evidence outside qa-screenshots and connected results so it
 # cannot satisfy the full-suite gate or duplicate required screenshot names.
-preflight_dir=app/build/reports/keyboard-preflight
+preflight_dir=app/build/reports/release-preflight
 mkdir -p "$preflight_dir"
 set +e
 gradle --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true \
-  '-Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.KeyboardSmokeTest,com.snowglobe.overlay.ChristmasMagicTest#pixelSetupAndChristmasScenesAreDiscoverable' \
+  '-Pandroid.testInstrumentationRunnerArguments.class=com.snowglobe.overlay.EffectsOnlyPackageTest,com.snowglobe.overlay.ChristmasMagicTest#pixelSetupAndChristmasScenesAreDiscoverable' \
   :app:connectedDebugAndroidTest --rerun 2>&1 | tee "$preflight_dir/gradle.log"
 preflight_pipeline=("${PIPESTATUS[@]}")
 set -e
@@ -72,11 +72,11 @@ if [ -d app/build/reports/androidTests/connected ]; then
 fi
 timeout 30s adb pull /sdcard/Android/data/com.snowglobe.overlay/files/screenshots "$preflight_dir/screenshots" || true
 if [ "$preflight_status" -ne 0 ]; then
-  echo '::error::Keyboard and scene-discovery preflight failed; its reports and screenshots are preserved'
+  echo '::error::Effects-only package and scene-discovery preflight failed; its reports and screenshots are preserved'
   exit "$preflight_status"
 fi
-# Restore the original fresh-install state; the preflight changes preferences
-# and leaves typed text in the separate probe activity.
+# Restore the original fresh-install state; the preflight visits the Studio
+# and can change local preferences. It must not seed the complete suite.
 for test_package in com.snowglobe.overlay com.snowglobe.taptest; do
   clear_result=$(timeout 15s adb shell pm clear "$test_package" | tr -d '\r')
   if [ "$clear_result" != Success ]; then

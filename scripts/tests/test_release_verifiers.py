@@ -139,12 +139,12 @@ class NativeLibraryVerificationTest(unittest.TestCase):
 
 class ManifestVerificationTest(unittest.TestCase):
     def setUp(self):
-        self.meta = {"applicationId": "com.snowglobe.overlay", "versionCode": 100028, "versionName": "0.21.6", "targetSdk": 36}
+        self.meta = {"applicationId": "com.snowglobe.overlay", "versionCode": 100029, "versionName": "0.22.0", "targetSdk": 36}
         self.manifest = ET.parse(SCRIPTS.parent / "app/src/main/AndroidManifest.xml").getroot()
         self.a = manifest_check.ANDROID
         self.manifest.set("package", self.meta["applicationId"])
-        self.manifest.set(self.a + "versionCode", "100028")
-        self.manifest.set(self.a + "versionName", "0.21.6")
+        self.manifest.set(self.a + "versionCode", "100029")
+        self.manifest.set(self.a + "versionName", "0.22.0")
         ET.SubElement(self.manifest, "uses-sdk", {self.a + "targetSdkVersion": "36"})
 
     def test_release_contract_passes(self):
@@ -153,6 +153,35 @@ class ManifestVerificationTest(unittest.TestCase):
     def test_sdk_qualified_internet_permission_fails(self):
         ET.SubElement(self.manifest, "uses-permission-sdk-23", {self.a + "name": "android.permission.INTERNET"})
         with self.assertRaisesRegex(ValueError, "INTERNET"):
+            manifest_check.verify(self.meta, self.manifest)
+
+    def test_billing_permission_is_required_for_the_lifetime_upgrade(self):
+        for permission in list(self.manifest.findall("uses-permission")):
+            if permission.get(self.a + "name") == "com.android.vending.BILLING":
+                self.manifest.remove(permission)
+        with self.assertRaisesRegex(ValueError, "Billing permission"):
+            manifest_check.verify(self.meta, self.manifest)
+
+    def test_renamed_or_disabled_input_methods_cannot_return(self):
+        for marker in ("permission", "action", "metadata"):
+            with self.subTest(marker=marker):
+                item = copy.deepcopy(self.manifest)
+                service = ET.SubElement(item.find("application"), "service", {
+                    self.a + "name": ".RenamedKeyboard", self.a + "enabled": "false"})
+                if marker == "permission":
+                    service.set(self.a + "permission", "android.permission.BIND_INPUT_METHOD")
+                elif marker == "action":
+                    intent = ET.SubElement(service, "intent-filter")
+                    ET.SubElement(intent, "action", {self.a + "name": "android.view.InputMethod"})
+                else:
+                    ET.SubElement(service, "meta-data", {self.a + "name": "android.view.im"})
+                with self.assertRaisesRegex(ValueError, "input method"):
+                    manifest_check.verify(self.meta, item)
+
+    def test_removed_keyboard_class_cannot_remain_as_an_ordinary_service(self):
+        ET.SubElement(self.manifest.find("application"), "service", {
+            self.a + "name": ".ChristmasKeyboardService"})
+        with self.assertRaisesRegex(ValueError, "Removed keyboard service"):
             manifest_check.verify(self.meta, self.manifest)
 
     def test_debug_or_test_only_bundle_fails(self):
@@ -216,11 +245,34 @@ class DeviceEvidenceVerificationTest(unittest.TestCase):
     def test_empty_or_skipped_run_fails(self):
         ET.SubElement(self.suite.find("testcase"), "skipped")
         self.write_report()
-        with self.assertRaisesRegex(ValueError, "did not pass"):
+        with self.assertRaisesRegex(ValueError, "skipped test"):
             evidence.verify(self.results, self.images)
         (self.results / "TEST-fixture.xml").unlink()
         with self.assertRaisesRegex(ValueError, "no test cases"):
             evidence.verify(self.results, self.images)
+
+    def test_skipped_noncritical_case_also_fails(self):
+        case = ET.SubElement(self.suite, "testcase", {"classname": "other.Test", "name": "oneMoreCase"})
+        ET.SubElement(case, "skipped")
+        self.write_report()
+        with self.assertRaisesRegex(ValueError, "skipped test"):
+            evidence.verify(self.results, self.images)
+
+    def test_partial_run_cannot_omit_a_declared_device_test(self):
+        expected = evidence.REQUIRED_TESTS | {("com.snowglobe.overlay.ExtraTest", "declaredCase")}
+        with self.assertRaisesRegex(ValueError, "declaredCase"):
+            evidence.verify(self.results, self.images, expected)
+
+    def test_declared_test_discovery_follows_current_suite_instead_of_stale_counts(self):
+        sources = self.folder / "sources"
+        sources.mkdir()
+        (sources / "ExampleTest.java").write_text(
+            "package example; public final class ExampleTest {\n"
+            "@Test public void retainedCase() {}\n"
+            "@Test(timeout=1000) public void addedCase() {}\n"
+            "public void helper() {}\n}")
+        self.assertEqual({("example.ExampleTest", "retainedCase"), ("example.ExampleTest", "addedCase")},
+                         evidence.declared_tests(sources))
 
     def test_missing_snow_screenshot_fails(self):
         (self.images / "30-snow-after-keyboard.png").unlink()

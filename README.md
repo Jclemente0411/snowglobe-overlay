@@ -1,14 +1,16 @@
 # SnowGlobe
 
-SnowGlobe is an Android holiday effects app with an optional full-screen overlay, system-selected live wallpaper, and a local English Christmas RGB keyboard. Package: `com.snowglobe.overlay`.
+SnowGlobe brings layered snowfall, Christmas lights and original winter artwork to Android. Package: `com.snowglobe.overlay`.
 
-## Current release build
+## Current release scope
 
-The signed **0.21.6 / 100028** AAB is verified and ready for Google Play upload, with minimum SDK 26 and target SDK 36. [Release run 42327417503](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42327417503) passed all three CI jobs: 131 host tests, 35 script regressions, two separate preflight cases and all 50 full-suite device tests on each of Android 15 and Android 17, followed by signed-bundle verification. See [release readiness](docs/RELEASE_READINESS_0216.md) for the exact artifact, source, checksum and upload certificate. Google Play submission/approval, physical Pixel acceptance and complete Gboard equivalence have not been established.
+**0.22.0 / 100029** removes the SnowGlobe keyboard completely and concentrates on the overlay, live wallpaper, premium snow rendering, refined launcher icon and an offline 4K wallpaper collection. Minimum SDK 26; compile and target SDK 36. The release record is [RELEASE_READINESS_0220.md](docs/RELEASE_READINESS_0220.md).
 
-The keyboard uses a custom Android `InputMethodService` and Canvas view. It offers tap typing, local word suggestions, conservative known-typo correction, RGB themes, adjustable height, two-thumb tap ordering, spacebar cursor movement, a small local emoji palette, and accessible virtual keys. Glide typing, voice input, full multilingual prediction, a clipboard manager and Gboard's proprietary language models are not implemented. All current features remain unlocked; the proposed premium purchase flow is not implemented.
+Free features include full-height layered snow, snow speed/size/density/visibility and shape controls, lights and colors, the Christmas Eve and Arctic Night scene recipes, live wallpaper and two original 2160 × 3840 wallpapers. **SnowGlobe Holiday Plus** is the agreed one-time USD 2.99 upgrade inside this same app; there is no separate paid package or subscription.
 
-## Verification and release
+Plus adds falling decorations, alternate directions and rotation, floating fairy lights, three additional scene recipes, and two exclusive 4K wallpapers. Entitlements require a valid signed Google Play receipt. A copied preference or saved scene cannot unlock paid features. Missing billing verification configuration disables checkout while preserving the free app. An implemented purchase screen does not establish that the Console product is active or that a real test purchase passed. See [Holiday Plus setup](docs/HOLIDAY_PLUS_SETUP.md).
+
+## Build and verification
 
 Use JDK 17, Android SDK 36 and Gradle 8.11.1:
 
@@ -16,18 +18,20 @@ Use JDK 17, Android SDK 36 and Gradle 8.11.1:
 gradle --no-daemon :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :tap-probe:assembleDebug
 ```
 
-The JVM tests include real Android framework behavior simulated through Robolectric at API 35. They supplement device instrumentation; they do not measure physical-device typing latency or display frame rate.
+The release workflow verifies every declared device test and required screenshot on Android 15 and Android 17 before signing an AAB with the existing upload key. The compiled manifest gate rejects all input method services, requires the protected wallpaper/tile services, and checks the Billing permission. It also validates the bundle, signing certificate, native 16 KB layout and generated APK alignment.
 
-The `release-verify.yml` workflow runs Android 15 and Android 17 device checks before using the **existing upload key** to build a signed AAB. It verifies the bundle's signature, package/version/SDK and service declarations, native 16 KB alignment and generated APK alignment. Retained evidence includes screenshots, test reports, bundle metadata, source commit, certificate information and SHA-256.
+Set the genuine Google Play licensing RSA public key as GitHub Actions variable `PLAY_BILLING_PUBLIC_KEY` or local Gradle property `playBillingPublicKey`. Invalid nonempty keys fail the build. An empty key is permitted for a free build, clearly recorded as `commerce-not-configured`. This is separate from the existing private upload keystore, which must never be replaced for this app.
 
-A local `bundleRelease` without `PLAY_STORE_FILE` intentionally produces an **unsigned inspection artifact**. It must not be uploaded to Google Play. Release signing requires the existing `PLAY_UPLOAD_*` GitHub secrets; no replacement key should be generated for an app already on Play.
+A local `bundleRelease` without `PLAY_STORE_FILE` is an unsigned inspection artifact and cannot be uploaded to Google Play. Signed builds require the existing `PLAY_UPLOAD_*` workflow secrets.
 
-## Device setup
+## Using SnowGlobe
 
-Open SnowGlobe and allow Display over other apps for the overlay. Full-screen snowfall is the default; top-quarter coverage is an optional setting. Android can block overlays and obscured touches on protected screens; use Pause when needed. Android controls live-wallpaper Home/Lock choices and does not allow an ordinary overlay above its secure lock screen or notification shade.
+Open SnowGlobe and allow Display over other apps when starting the overlay. Full-screen snowfall is the default; top-quarter coverage remains an explicit optional setting. Pause is available in the app, notification and Quick Settings tile. Android can block overlays on protected payment screens, so the app pauses its own overlay before starting a Holiday Plus checkout.
 
-Enable the optional keyboard in Android keyboard settings, then select it using the system keyboard switcher. Theme, RGB effect/brightness/speed, keyboard height, suggestions, autocorrection and haptics are configurable in SnowGlobe.
+Android controls live-wallpaper Home/Lock selection. An ordinary overlay cannot cover the secure lock screen or notification shade. The wallpaper collection saves original 4K PNG artwork to a destination selected through Android, without broad storage permission.
+
+SnowGlobe no longer appears in the keyboard picker. Android continues to manage your normal keyboard; full-height snow is tested while the system keyboard opens and closes.
 
 ## Privacy
 
-The current app has no Internet permission, analytics, accounts or billing integration. Keyboard text is processed in temporary local memory and is not logged, saved as a typing history or sent to the publisher. Android may back up local settings. Read the [privacy policy](docs/PRIVACY.md), also available within the app.
+No Internet permission, advertising, analytics, publisher account or app-operated server. Google Play Billing communicates through the installed Play service. Signed purchase proof stays in private backup-excluded storage; settings and scenes remain local. Read the [privacy policy](docs/PRIVACY.md), which is also available in the app.

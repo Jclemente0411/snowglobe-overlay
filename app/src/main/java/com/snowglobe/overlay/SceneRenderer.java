@@ -13,18 +13,20 @@ public final class SceneRenderer {
         {0xffff637e,0xff65e49b,0xffffd46f,0xff69bdff,0xffdf9aff}};
     private final Random random=new Random(20261102L);
     private final float[] x=new float[CAPACITY],y=new float[CAPACITY],speed=new float[CAPACITY],
-        phase=new float[CAPACITY],angle=new float[CAPACITY],spin=new float[CAPACITY];
+        phase=new float[CAPACITY],angle=new float[CAPACITY],spin=new float[CAPACITY],sway=new float[CAPACITY];
     private final float[] gx=new float[GLINTS],gy=new float[GLINTS],ga=new float[GLINTS],gl=new float[GLINTS];
     private final float[] bx=new float[BURSTS],by=new float[BURSTS],ba=new float[BURSTS],bvX=new float[BURSTS],bvY=new float[BURSTS];
     private final Paint ink=new Paint(Paint.ANTI_ALIAS_FLAG),bitmapPaint=new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG);
-    private final Paint backgroundPaint=new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Path cable=new Path(),snowCrystal=new Path(),snowStar=new Path(),hill=new Path();
+    private final Paint backgroundPaint=new Paint(Paint.ANTI_ALIAS_FLAG),snowFeather=new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Path cable=new Path(),hill=new Path();
+    private final Path[] snowCrystals={new Path(),new Path(),new Path()};
+    private final Path[] snowStars={new Path(),new Path()};
     private final RectF destination=new RectF();
     private final Bitmap[] bodies=new Bitmap[5],halos=new Bitmap[5],decorations=new Bitmap[7];
     private final float[] lightX=new float[24],lightY=new float[24],lightAngle=new float[24];
     private SceneSettings settings;
     private float density,width=1,height=1,top=0,bottom=0,time=0,wake=0;
-    private int palette=-1,shape=-1,lightCount=0;
+    private int palette=-1,shape=-1,lightCount=0,snowTint=0,previousActive=0;
     private long last=0;
     private boolean wallpaper=false,typingBudget=false;
 
@@ -33,12 +35,24 @@ public final class SceneRenderer {
         for(int i=0;i<CAPACITY;i++)reset(i,true);
         for(int i=0;i<GLINTS;i++){newGlint(i);ga[i]=-random.nextFloat()*7f;}
         for(int i=0;i<BURSTS;i++)ba[i]=10f;
-        buildFlakes();buildDecorations();apply(settings);
+        buildFlakes();apply(settings);
     }
     public void apply(SceneSettings value) {
         settings=value;
         if(value.reduced){wake=0;for(int i=0;i<BURSTS;i++)ba[i]=10f;}
+        // The free snow/lights scene never needs decorative bitmap allocations.
+        // A purchased decoration set is baked once on this settings boundary.
+        if(value.decorations.length>0&&decorations[0]==null)buildDecorations();
         if(palette!=value.palette||shape!=value.bulbShape){palette=value.palette;shape=value.bulbShape;buildBulbs();}
+        int tint=SnowVisualPolicy.color(value.snowShade);
+        if(snowTint!=tint){
+            snowTint=tint;
+            // One reusable unit-radius gradient. The Canvas supplies the scale;
+            // no blur filter, bitmap or gradient is allocated during animation.
+            snowFeather.setShader(new RadialGradient(0,0,1,
+                new int[]{tint,tint,(tint&0x00ffffff)|0x60000000,tint&0x00ffffff},
+                new float[]{0,.28f,.63f,1},Shader.TileMode.CLAMP));
+        }
         layoutLights();
     }
     public SceneSettings settings(){return settings;}
@@ -73,7 +87,15 @@ public final class SceneRenderer {
     private void reset(int i,boolean initial) {
         x[i]=random.nextFloat();y[i]=random.nextFloat();speed[i]=.6f+random.nextFloat()*.8f;
         phase[i]=random.nextFloat()*6.283185f;angle[i]=random.nextFloat()*360;
-        spin[i]=(random.nextFloat()-.5f)*90f;
+        spin[i]=(random.nextFloat()-.5f)*58f;
+        sway[i]=MotionMath.snowSway(time,phase[i],SnowVisualPolicy.depth(i));
+        if(initial){
+            // A softly jittered two-dimensional low-discrepancy field fills the
+            // bottom quarter immediately, including at the reduced IME budget.
+            // The two steps are independent; flakes do not line up diagonally.
+            x[i]=(.11f+i*.7548777f+x[i]*.10f)%1f;
+            y[i]=(.07f+i*.5698403f+y[i]*.08f)%1f;
+        }
         if(initial||settings==null)return;
         float dx=MotionMath.directionX(settings.direction),dy=MotionMath.directionY(settings.direction);
         float fluxX=Math.abs(dx)*height,fluxY=Math.abs(dy)*width;
@@ -96,14 +118,24 @@ public final class SceneRenderer {
         float dt=MotionMath.seconds(last,frameNanos);last=frameNanos;time+=dt;wake=Math.max(0,wake-dt);
         if(settings.reduced)return;
         float dx=MotionMath.directionX(settings.direction),dy=MotionMath.directionY(settings.direction);
-        for(int i=0,active=activeParticles();i<active;i++) {
-            float depth=.55f+(i%3)*.32f;
+        int active=activeParticles();
+        if(dt==0){
+            for(int i=previousActive;i<active;i++)sway[i]=MotionMath.snowSway(time,phase[i],SnowVisualPolicy.depth(i));
+            previousActive=active;return;
+        }
+        for(int i=0;i<active;i++) {
+            float depth=SnowVisualPolicy.depth(i);
             float v=dp(35)*settings.speed*speed[i]*depth*(settings.gentle?.72f:1f);
-            float gust=(float)Math.sin(time*.65f+phase[i])*dp(9)*settings.wind;
-            x[i]+=(v*dx+gust)*dt/width;y[i]+=(v*dy)*dt/height;
+            float currentSway=MotionMath.snowSway(time,phase[i],depth);
+            float drift=(i<previousActive?currentSway-sway[i]:0)*dp(12+depth*10)*settings.wind*(settings.gentle?.75f:1f);
+            sway[i]=currentSway;
+            // Drift acts across the selected travel direction, including sideways
+            // and upward scenes, without changing the user's speed or direction.
+            x[i]+=(v*dx*dt+dy*drift)/width;y[i]+=(v*dy*dt-dx*drift)/height;
             angle[i]=(angle[i]+spin[i]*settings.spin*dt*(settings.gentle?.6f:1f)+360)%360;
             if(x[i]<-dp(40)/width||x[i]>1+dp(40)/width||y[i]<-dp(40)/height||y[i]>1+dp(40)/height)reset(i,false);
         }
+        previousActive=active;
         if(settings.sparks&&!typingBudget)for(int i=0;i<GLINTS;i++){ga[i]+=dt;if(ga[i]>gl[i]+2f){newGlint(i);ga[i]=-random.nextFloat()*2.5f;}}
         for(int i=0;i<BURSTS;i++)if(ba[i]<2.2f){ba[i]+=dt;bx[i]+=bvX[i]*dt;by[i]+=bvY[i]*dt;bvY[i]+=dp(12)*dt;}
     }
@@ -111,12 +143,22 @@ public final class SceneRenderer {
     private void line(int color,float width,int alpha){fill(color,alpha);ink.setStyle(Paint.Style.STROKE);ink.setStrokeWidth(width);ink.setStrokeCap(Paint.Cap.ROUND);ink.setStrokeJoin(Paint.Join.ROUND);}
     private void buildFlakes(){
         for(int i=0;i<6;i++){double a=i*Math.PI/3;float dx=(float)Math.cos(a),dy=(float)Math.sin(a);
-            snowCrystal.moveTo(0,0);snowCrystal.lineTo(dx,dy);
-            for(float at:new float[]{.52f,.78f}){
-                snowCrystal.moveTo(dx*at,dy*at);snowCrystal.lineTo(dx*(at-.19f)-dy*.17f,dy*(at-.19f)+dx*.17f);
-                snowCrystal.moveTo(dx*at,dy*at);snowCrystal.lineTo(dx*(at-.19f)+dy*.17f,dy*(at-.19f)-dx*.17f);
+            for(int variant=0;variant<snowCrystals.length;variant++){
+                Path crystal=snowCrystals[variant];
+                crystal.moveTo(0,0);crystal.lineTo(dx,dy);
+                int branches=variant==1?1:variant==2?3:2;
+                for(int branch=0;branch<branches;branch++){
+                    float at=variant==1?.66f:variant==2?.40f+branch*.21f:.52f+branch*.26f;
+                    float reach=variant==2?.13f:.19f,spread=variant==1?.23f:.17f;
+                    crystal.moveTo(dx*at,dy*at);crystal.lineTo(dx*(at-reach)-dy*spread,dy*(at-reach)+dx*spread);
+                    crystal.moveTo(dx*at,dy*at);crystal.lineTo(dx*(at-reach)+dy*spread,dy*(at-reach)-dx*spread);
+                }
             }
-            snowStar.moveTo(0,0);snowStar.lineTo(dx,dy);
+            for(Path star:snowStars){star.moveTo(0,0);star.lineTo(dx,dy);}
+            // Fine hexagonal facets vary the silhouette without using glyph fonts.
+            float nx=(float)Math.cos(a+Math.PI/3),ny=(float)Math.sin(a+Math.PI/3);
+            snowCrystals[1].moveTo(dx*.31f,dy*.31f);snowCrystals[1].lineTo(nx*.31f,ny*.31f);
+            snowStars[1].moveTo(dx*.41f,dy*.41f);snowStars[1].lineTo(nx*.41f,ny*.41f);
         }
     }
     private void layoutLights(){
@@ -198,13 +240,23 @@ public final class SceneRenderer {
             decorations[type]=bitmap;
         }
     }
-    private void drawFlake(Canvas c,float px,float py,float radius,float rotation,int alpha){
+    private void drawFlake(Canvas c,float px,float py,float radius,float rotation,int alpha,int variant,int layer){
         int opacity=SnowVisualPolicy.alpha(alpha,settings.snowVisibility);
         if(opacity<=0)return;
-        int tint=SnowVisualPolicy.color(settings.snowShade);
-        c.save();c.translate(px,py);c.rotate(rotation);
-        if(settings.flake==0){fill(tint,opacity);c.drawCircle(0,0,radius*.55f,ink);}
-        else {c.scale(radius,radius);line(tint,.15f,opacity);c.drawPath(settings.flake==1?snowCrystal:snowStar,ink);}
+        c.save();c.translate(px,py);c.rotate(rotation);c.scale(radius,radius);
+        if(settings.flake==0){
+            snowFeather.setAlpha(opacity);c.drawCircle(0,0,1, snowFeather);
+            fill(snowTint,Math.round(opacity*.48f));c.drawCircle(0,0,.29f,ink);
+        }else{
+            if(layer==3){
+                // Sparse foreground softness gives depth, not a screen-wide bloom.
+                // The selected charcoal/silver tint also applies to this soft edge.
+                snowFeather.setAlpha(Math.round(opacity*.21f));c.drawCircle(0,0,1,snowFeather);
+            }
+            line(snowTint,layer==0?.19f:.125f,opacity);
+            c.drawPath(settings.flake==1?snowCrystals[variant%snowCrystals.length]:snowStars[variant%snowStars.length],ink);
+            if(layer>=2){fill(snowTint,opacity);c.drawCircle(0,0,.10f,ink);}
+        }
         c.restore();
     }
     public void draw(Canvas c,boolean background){
@@ -214,15 +266,19 @@ public final class SceneRenderer {
         if(wallpaper&&settings.wallpaperSnow&&settings.snowVisibility>0)snow=true;
         if(wake>0&&wallpaper&&settings.snowVisibility>0)snow=true;
         int total=settings.decorations.length;
-        for(int i=0;i<count;i++){
-            float depth=.55f+(i%3)*.32f,px=x[i]*width,py=y[i]*height;
+        // Back-to-front order is stable across frames; all arrays and paths are
+        // retained. Four tiny bounded passes avoid sorting or per-frame objects.
+        for(int layer=0;layer<4;layer++)for(int i=0;i<count;i++){
+            if(SnowVisualPolicy.layer(i)!=layer)continue;
+            float depth=SnowVisualPolicy.depth(i),px=x[i]*width,py=y[i]*height;
             float rotation=settings.reduced||settings.spin==0?0:angle[i];
             if(px<-dp(65)||px>width+dp(65)||py<-dp(80)||py>height+dp(80))continue;
             if(total>0&&i%4==0){int type=settings.decorations[(i/4)%total];
                 if(type==4){float e=settings.brightness*MotionMath.brightness(settings.fallingBlink?2:0,time,i,settings.tempo,settings.reduced);
                     drawBulb(c,px,py,dp(.47f)*settings.size*depth,rotation,i,e,.95f);}
-                else {float r=dp(13)*settings.size*depth;c.save();c.translate(px,py);c.rotate(rotation);destination.set(-r,-r,r,r);bitmapPaint.setAlpha((int)(220*depth/1.2f));c.drawBitmap(decorations[type],null,destination,bitmapPaint);c.restore();}
-            }else if(snow)drawFlake(c,px,py,dp(3.4f)*settings.size*depth,rotation,(int)(150+depth*80));
+                else {float r=dp(13)*settings.size*depth;c.save();c.translate(px,py);c.rotate(rotation);destination.set(-r,-r,r,r);bitmapPaint.setAlpha(Math.min(255,(int)(220*depth/1.2f)));c.drawBitmap(decorations[type],null,destination,bitmapPaint);c.restore();}
+            }else if(snow)drawFlake(c,px,py,dp(4.0f)*settings.size*depth*(.90f+speed[i]*.12f),
+                rotation,SnowVisualPolicy.opacity(i),i,layer);
         }
         if(settings.lights){line(0xff091c19,dp(3.3f),255);c.drawPath(cable,ink);line(0xff66876e,dp(.8f),220);c.drawPath(cable,ink);
             for(int i=0;i<lightCount;i++)drawBulb(c,lightX[i],lightY[i],dp(.58f)*settings.bulbSize,lightAngle[i],i,
@@ -235,6 +291,6 @@ public final class SceneRenderer {
                 else {fill(PALETTES[palette][i%PALETTES[palette].length],(int)(200*a));float r=dp(5)*a;float xx=gx[i]*width;c.drawOval(xx-r,py-dp(.9f),xx+r,py+dp(.9f),ink);c.drawOval(xx-dp(.9f),py-r,xx+dp(.9f),py+r,ink);}
             }
         }
-        for(int i=0;i<BURSTS;i++)if(ba[i]<2.2f)drawFlake(c,bx[i],by[i],dp(2.8f),angle[i],(int)(230*(1-ba[i]/2.2f)));
+        for(int i=0;i<BURSTS;i++)if(ba[i]<2.2f)drawFlake(c,bx[i],by[i],dp(2.8f),angle[i],(int)(230*(1-ba[i]/2.2f)),i,2);
     }
 }

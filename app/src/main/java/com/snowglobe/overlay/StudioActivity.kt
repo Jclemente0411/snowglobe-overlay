@@ -2,7 +2,6 @@ package com.snowglobe.overlay
 
 import android.Manifest
 import android.app.StatusBarManager
-import android.view.inputmethod.InputMethodManager
 import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Context
@@ -20,11 +19,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
+import java.util.concurrent.Executors
 
 /** UI host only. The 0.15 overlay, power and wallpaper lifecycle policies are preserved. */
 class StudioActivity:ComponentActivity(){
     private lateinit var prefs:SharedPreferences
     private lateinit var scenes:SavedScenesStore
+    private lateinit var billing:HolidayPlusBilling
+    private var plus by mutableStateOf(PlusUiState())
+    private var plusRequest by mutableIntStateOf(0)
+    private var wallpaperBusy by mutableStateOf(false)
+    private var wallpaperDesign=0
+    private val artworkWorker=Executors.newSingleThreadExecutor()
     private val studioToken=Any()
     private var revision by mutableIntStateOf(0)
     private var permission by mutableStateOf(false)
@@ -36,10 +42,22 @@ class StudioActivity:ComponentActivity(){
     private var undoName="Custom"
     private val changes=SharedPreferences.OnSharedPreferenceChangeListener{_,_->revision++}
     private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()){startWhenAllowed()}
+    private val wallpaperDocument=registerForActivityResult(ActivityResultContracts.CreateDocument("image/png")){uri->
+        if(uri!=null)exportWallpaper(uri,wallpaperDesign)
+    }
 
     override fun onCreate(savedInstanceState:Bundle?){
         super.onCreate(savedInstanceState);systemBars(true)
         prefs=getSharedPreferences("snowglobe",Context.MODE_PRIVATE);scenes=SavedScenesStore(this)
+        wallpaperDesign=savedInstanceState?.getInt("wallpaperDesign",0)?.coerceIn(0,3)?:0
+        // Retire settings for the removed input method without touching visual or playback choices.
+        val oldKeys=prefs.all.keys.filter{it.startsWith("keyboard")}
+        if(oldKeys.isNotEmpty())prefs.edit().also{edit->oldKeys.forEach{edit.remove(it)}}.apply()
+        billing=HolidayPlusBilling(this,BuildConfig.PLAY_BILLING_PUBLIC_KEY){snapshot->
+            plus=PlusUiState(snapshot.owned,snapshot.pending,snapshot.busy,snapshot.canBuy,
+                snapshot.verificationConfigured,snapshot.formattedPrice,snapshot.message)
+            revision++
+        }
         prefs.registerOnSharedPreferenceChangeListener(changes)
         if(!prefs.contains("effectsEnabled"))prefs.edit().putBoolean("effectsEnabled",false).apply()
         // Preserve existing quality selections; new installations start with Auto.
@@ -54,8 +72,10 @@ class StudioActivity:ComponentActivity(){
         }
         savedInstanceState?.getString("undoScene")?.let{try{undo=SceneSnapshot.decode(it);undoName=savedInstanceState.getString("undoName","Custom")}catch(_:IllegalArgumentException){}}
         val actions=HolidayActions(::enable,::openPlaySafely,::addQuickTile,::wallpaperPicker,::changeBoolean,::changeNumber,
-            ::applyScene,::restoreUndo,::saveScene,::loadScene,::deleteScene,::systemBars,::keyboardSettings,::keyboardPicker)
-        setContent{HolidayStudio(prefs,scenes,HolidayUiState(revision,permission,lockApplied,lockCheckAvailable,setupError,setupMessage,undo!=null),actions)}
+            ::applyScene,::restoreUndo,::saveScene,::loadScene,::deleteScene,::systemBars,
+            ::buyPlus,{billing.restore()},::saveWallpaper,{plusRequest++})
+        setContent{HolidayStudio(prefs,scenes,HolidayUiState(revision,permission,lockApplied,lockCheckAvailable,setupError,setupMessage,undo!=null,plus,plusRequest,wallpaperBusy),actions)}
+        billing.start()
     }
     private fun systemBars(dark:Boolean){
         val clear=android.graphics.Color.TRANSPARENT
@@ -63,10 +83,10 @@ class StudioActivity:ComponentActivity(){
             navigationBarStyle=if(dark)SystemBarStyle.dark(clear)else SystemBarStyle.light(clear,clear))
     }
     override fun onStart(){super.onStart();EffectsService.studioStarted(studioToken)}
-    override fun onResume(){super.onResume();permission=Settings.canDrawOverlays(this);checkWallpaper();startWhenAllowed();revision++}
+    override fun onResume(){super.onResume();permission=Settings.canDrawOverlays(this);checkWallpaper();startWhenAllowed();if(::billing.isInitialized)billing.refresh();revision++}
     override fun onStop(){EffectsService.studioStopped(studioToken);super.onStop()}
-    override fun onDestroy(){EffectsService.studioStopped(studioToken);prefs.unregisterOnSharedPreferenceChangeListener(changes);super.onDestroy()}
-    override fun onSaveInstanceState(out:Bundle){undo?.let{out.putString("undoScene",it.encode());out.putString("undoName",undoName)};super.onSaveInstanceState(out)}
+    override fun onDestroy(){EffectsService.studioStopped(studioToken);if(::billing.isInitialized)billing.close();artworkWorker.shutdown();prefs.unregisterOnSharedPreferenceChangeListener(changes);super.onDestroy()}
+    override fun onSaveInstanceState(out:Bundle){out.putInt("wallpaperDesign",wallpaperDesign);undo?.let{out.putString("undoScene",it.encode());out.putString("undoName",undoName)};super.onSaveInstanceState(out)}
     private fun startWhenAllowed(){
         if(!prefs.getBoolean("effectsEnabled",false)||!Settings.canDrawOverlays(this))return
         try{if(!EffectsService.isActive())startForegroundService(Intent(this,EffectsService::class.java).setAction(EffectsService.START))}
@@ -85,16 +105,40 @@ class StudioActivity:ComponentActivity(){
             notifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         else startWhenAllowed()
     }
-    private fun keyboardSettings(){
-        try { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) }
-        catch (_:RuntimeException) { setupError="Open Android Settings, then System > Keyboard > On-screen keyboard to enable SnowGlobe." }
+    private fun requirePlus():Boolean{
+        if(HolidayPlusEntitlement.isOwned(this,BuildConfig.PLAY_BILLING_PUBLIC_KEY))return true
+        plusRequest++;return false
     }
-    private fun keyboardPicker(){
-        try {
-            val manager=getSystemService(InputMethodManager::class.java)
-            if(manager!=null) manager.showInputMethodPicker()
-            else setupError="Choose SnowGlobe from Android's keyboard switcher."
-        } catch (_:RuntimeException) { setupError="Choose SnowGlobe from Android's keyboard switcher or keyboard settings." }
+    private fun buyPlus(){
+        if(!billing.snapshot().canBuy)return
+        // Remove the overlay before Google's protected payment sheet opens. Pause remains explicit.
+        EffectsService.pauseNow(this);revision++;billing.buy(this)
+    }
+    private fun saveWallpaper(design:Int){
+        if(design !in 0..3||wallpaperBusy)return
+        if(HolidayAccess.plusWallpaper(design)&&!requirePlus())return
+        wallpaperDesign=design
+        try{wallpaperDocument.launch("SnowGlobe-"+WallpaperArt.NAMES[design].replace(' ','-')+"-4K.png")}
+        catch(_:RuntimeException){setupError="Android could not open Save. Try again from the wallpaper collection."}
+    }
+    private fun exportWallpaper(uri:Uri,design:Int){
+        if(HolidayAccess.plusWallpaper(design)&&!requirePlus())return
+        wallpaperBusy=true
+        val resolver=applicationContext.contentResolver
+        artworkWorker.execute{
+            var bitmap:android.graphics.Bitmap?=null
+            val result=try{
+                val rendered=WallpaperArt.render(design,WallpaperArt.WIDTH,WallpaperArt.HEIGHT)
+                bitmap=rendered
+                resolver.openOutputStream(uri,"w").use{out->
+                    check(out!=null&&rendered.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out)){"Could not save wallpaper"}
+                }
+                "4K wallpaper saved. Choose it in Android's Wallpaper & style settings."
+            }catch(_:Exception){"The wallpaper could not be saved. Check the destination and try again."}
+            catch(_:OutOfMemoryError){"Not enough memory to export right now. Close other apps and try again."}
+            finally{bitmap?.recycle()}
+            runOnUiThread{if(!isDestroyed){wallpaperBusy=false;setupMessage=result}}
+        }
     }
     private fun openPlaySafely(){
         EffectsService.pauseNow(this);revision++
@@ -127,11 +171,13 @@ class StudioActivity:ComponentActivity(){
         }
     }
     private fun changeBoolean(key:String,value:Boolean){
+        if(value&&HolidayAccess.plusSwitch(key)&&!requirePlus())return
         val e=prefs.edit().putBoolean(key,value)
         if(key !in setOf("gentleMotion","reduceMotion","wallpaperSnow","wakeSnow","pixelColors","edgeOnly"))e.putString("selectedScene","Custom")
         e.apply()
     }
     private fun changeNumber(key:String,value:Int){
+        if(HolidayAccess.plusNumber(key)&&!requirePlus())return
         val e=prefs.edit().putInt(key,value)
         if(key=="lightMotion")e.putBoolean("twinkle",value!=0)
         if(key !in setOf("qualityMode","snowVisibility","snowShade"))e.putString("selectedScene","Custom")
@@ -147,6 +193,7 @@ class StudioActivity:ComponentActivity(){
     }
     private fun applyScene(scene:String){
         if(SceneCatalog.find(scene)==null){setupError="This scene is not available.";return}
+        if(HolidayAccess.plusScene(scene)&&!requirePlus())return
         captureUndo()
         if(!SceneCatalog.apply(prefs,scene))setupError="Could not apply this scene."
     }

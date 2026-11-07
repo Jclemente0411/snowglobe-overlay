@@ -25,7 +25,7 @@ public class SnowWallpaperService extends WallpaperService {
         private float density=1,safeTop,safeBottom,displayHz=60;
         private final Runnable reload=()->{
             reloadQueued=false;if(renderer==null)return;
-            renderer.apply(new SceneSettings(prefs));failures=0;render();requestFrame();
+            renderer.apply(settingsSnapshot());failures=0;render();requestFrame();
         };
         private final SharedPreferences.OnSharedPreferenceChangeListener changes=(p,key)->{
             if(key!=null&&!key.startsWith("_")&&!reloadQueued){reloadQueued=true;main.post(reload);}
@@ -39,7 +39,7 @@ public class SnowWallpaperService extends WallpaperService {
             Context context=Build.VERSION.SDK_INT>=29?getDisplayContext():SnowWallpaperService.this;
             density=context.getResources().getDisplayMetrics().density;
             WindowManager wm=context.getSystemService(WindowManager.class);if(wm!=null)displayHz=wm.getDefaultDisplay().getRefreshRate();
-            renderer=new SceneRenderer(density,new SceneSettings(prefs));renderer.setWallpaper(true);
+            renderer=new SceneRenderer(density,settingsSnapshot());renderer.setWallpaper(true);
             power=new RenderPowerMonitor(context,()->{
                 cancel();if(power!=null&&power.interactive&&visible){frames=0;renderer.wake();requestFrame();}
             });
@@ -47,6 +47,8 @@ public class SnowWallpaperService extends WallpaperService {
             setTouchEventsEnabled(true);setOffsetNotificationsEnabled(false);
         }
         private void updateGeometry(){if(renderer!=null)renderer.resize(surfaceWidth,surfaceHeight,Math.max(safeTop,32*density),safeBottom,density);}
+        private SceneSettings settingsSnapshot(){return new SceneSettings(prefs,
+            HolidayPlusEntitlement.isOwned(SnowWallpaperService.this,BuildConfig.PLAY_BILLING_PUBLIC_KEY));}
         @Override public void onApplyWindowInsets(WindowInsets insets){
             super.onApplyWindowInsets(insets);
             if(Build.VERSION.SDK_INT>=30){android.graphics.Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());safeTop=safe.top;safeBottom=safe.bottom;}

@@ -42,7 +42,8 @@ public class HolidayAppearanceTest {
             clickDescription("Appearance");clickDescription("Use Evergreen Lodge theme");device.findObject(By.text("Done")).click();capture("16-evergreen-home.png");
             clickDescription("Appearance");clickDescription("Use Pixel colors theme");device.findObject(By.text("Done")).click();capture("16-pixel-home.png");
             for(String key:new String[]{"effectsEnabled","qualityMode","palette","speed","reduceMotion"})assertEquals(key,before.get(key),prefs.getAll().get(key));
-            assertFalse(EffectsService.isActive());assertFalse(PremiumPolicy.PAYWALL_VISIBLE);assertFalse(PremiumPolicy.mayLaunchCheckout());
+            assertFalse(EffectsService.isActive());assertTrue(PremiumPolicy.PAYWALL_VISIBLE);
+            assertFalse("An appearance change cannot bypass receipt verification",PremiumPolicy.allFeaturesAvailable());
         }finally{prefs.edit().putBoolean("reduceMotion",false).putInt("qualityMode",1).commit();}
     }
     @Test public void settingsAndWallpaperControlsRemainReachableAtLargeText() throws Exception {

@@ -31,6 +31,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
@@ -46,13 +48,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 
+internal data class PlusUiState(val owned:Boolean=false,val pending:Boolean=false,val busy:Boolean=false,
+    val canBuy:Boolean=false,val configured:Boolean=false,val price:String="",val message:String="Checking Holiday Plus…")
 internal data class HolidayUiState(val revision:Int,val permission:Boolean,val lockApplied:Boolean,
-    val lockCheckAvailable:Boolean,val error:String?,val message:String?,val canUndo:Boolean)
+    val lockCheckAvailable:Boolean,val error:String?,val message:String?,val canUndo:Boolean,
+    val plus:PlusUiState=PlusUiState(),val plusRequest:Int=0,val wallpaperBusy:Boolean=false)
 internal class HolidayActions(
     val enable:(Boolean)->Unit,val pauseAndOpenPlay:()->Unit,val addTile:()->Unit,val wallpaper:()->Unit,
     val setBoolean:(String,Boolean)->Unit,val setNumber:(String,Int)->Unit,val preset:(String)->Unit,
     val undo:()->Unit,val save:(Int,String)->Unit,val load:(Int)->Unit,val delete:(Int)->Unit,
-    val systemBars:(Boolean)->Unit,val keyboardSettings:()->Unit,val keyboardPicker:()->Unit)
+    val systemBars:(Boolean)->Unit,val buyPlus:()->Unit,val restorePlus:()->Unit,
+    val saveWallpaper:(Int)->Unit,val openPlus:()->Unit)
 
 @Composable internal fun HolidayStudio(prefs:SharedPreferences,scenes:SavedScenesStore,state:HolidayUiState,actions:HolidayActions){
     val context=LocalContext.current
@@ -60,6 +66,7 @@ internal class HolidayActions(
     var theme by remember{mutableStateOf(appearance.theme())}
     var page by rememberSaveable{mutableIntStateOf(0)}
     var sheet by rememberSaveable{mutableStateOf<String?>(null)}
+    LaunchedEffect(state.plusRequest){if(state.plusRequest>0)sheet="plus"}
     val scrollStates=List(4){rememberLazyListState()}
     val reduced=remember(state.revision){prefs.getBoolean("reduceMotion",false)}
     val pixel=theme==HolidayThemeTokens.PIXEL&&Build.VERSION.SDK_INT>=31
@@ -107,28 +114,13 @@ internal class HolidayActions(
                             0->{
                                 item{HolidayHero(prefs,state,actions,previewActive=sheet==null)}
                                 item{PixelSetupSummary(prefs,state,onDetails={sheet="setup"})}
-                                item{HolidayCard("Christmas RGB keyboard","An optional SnowGlobe keyboard with festive lights. Enable it in Android settings, then select it as your keyboard."){
-                                    OutlinedButton(onClick=actions.keyboardSettings,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("1. Enable Christmas keyboard")}
-                                    OutlinedButton(onClick=actions.keyboardPicker,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("2. Choose Christmas keyboard")}
-                                    HolidayChoice(prefs,state,actions,"Keyboard theme","keyboardTheme",
-                                        listOf("Classic Christmas","Winter Ice","Candlelight Gold"),0)
-                                    HolidayToggle(prefs,state,actions,"Animated RGB lights","keyboardRgb",true,
-                                        "Lights animate only while the keyboard is open.")
-                                    HolidayChoice(prefs,state,actions,"Christmas RGB effect","keyboardRgbPattern",
-                                        listOf("Festive wave","Twinkling lights","Steady glow"),0)
-                                    HolidaySlider(prefs,state,actions,"RGB brightness","keyboardRgbBrightness",75)
-                                    HolidaySlider(prefs,state,actions,"RGB animation speed","keyboardRgbSpeed",45)
-                                    HolidaySlider(prefs,state,actions,"Keyboard height","keyboardHeight",60)
-                                    Text("Keys are lifted above the Android gesture bar. Full-screen snowfall is in Snow settings; use top-only effects if an app blocks protected touches.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
-                                    HolidayToggle(prefs,state,actions,"Word suggestions","keyboardSuggestions",true,
-                                        "Show local English suggestions above the keys.")
-                                    HolidayToggle(prefs,state,actions,"Auto-correct common typos","keyboardAutoCorrect",true,
-                                        "Correct common spelling errors when you press Space. Backspace immediately after a correction to undo it.")
-                                    HolidayToggle(prefs,state,actions,"Keypress haptics","keyboardHaptics",true,
-                                        "Gentle tactile feedback when typing.")
-                                    OutlinedButton(onClick={sheet="privacy"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Keyboard privacy policy")}
-                                    Text("Local English suggestions and common-typo correction. Password fields have no suggestions or correction. RGB motion stops with Reduce Motion or Battery Saver. Glide typing, voice input and multilingual prediction are not available.",
-                                        style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                item{Surface(onClick={sheet="wallpapers"},color=colors.surface,shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,colors.outlineVariant)){
+                                    Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){
+                                        Icon(painterResource(R.drawable.ic_wallpaper_gallery),null,Modifier.size(30.dp),tint=colors.primary)
+                                        Column(Modifier.weight(1f)){Text("4K wallpaper collection",fontWeight=FontWeight.SemiBold)
+                                            Text("Original winter art · made for your screen",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
+                                        Text("›",fontSize=24.sp,color=colors.primary)
+                                    }
                                 }}
                                 item{HolidayCard("Snow visibility","Make flakes subtle or bright without changing how many fall."){
                                     HolidaySlider(prefs,state,actions,"Snow visibility","snowVisibility",100)
@@ -136,14 +128,15 @@ internal class HolidayActions(
                                         style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                                 item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                                    Column(Modifier.weight(1f)){HolidayHeading("Christmas magic");Text("Five complete looks, one tap.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
+                                    Column(Modifier.weight(1f)){HolidayHeading("Christmas magic");Text("Curated winter scenes, one tap.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
                                     TextButton(onClick={sheet="saved"}){Text("My scenes")}
                                 }}
                                 item{HolidayScenes(prefs,state,actions)}
+                                item{HolidayPlusCard(state.plus){sheet="plus"}}
                                 item{HolidayCard("Snow coverage","Full-screen snowfall is the default. Top-edge-only coverage is optional."){
                                     HolidayToggle(prefs,state,actions,"Limit snowfall to top edge (safer taps)","edgeOnly",false,
                                         "Keep the falling effects in the top quarter of the screen.")
-                                    Text("Full-screen snowfall now covers the entire display again. Some secure app controls block touches through overlays; switch on top-edge-only mode or Pause effects before payment or login.",
+                                    Text("Snow drifts across the entire display. Pause effects before payment or login when a protected app blocks overlay touches.",
                                         style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                                 }}
                                 if(state.canUndo)item{TextButton(onClick=actions.undo){Text("Undo last scene")}}
@@ -160,7 +153,7 @@ internal class HolidayActions(
                                     Spacer(Modifier.height(12.dp))
                                     OutlinedButton(onClick={sheet="settings"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Wallpaper & controls")}
                                 }}
-                                item{Text("SnowGlobe ${BuildConfig.VERSION_NAME} beta · all features unlocked\nDesigned for Pixel. Independent, not affiliated with Google or Samsung.",
+                                item{Text("SnowGlobe ${BuildConfig.VERSION_NAME} · crafted for winter\nDesigned for Pixel. Independent, not affiliated with Google or Samsung.",
                                     style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant,modifier=Modifier.padding(horizontal=6.dp))}
                             }
                             1->{
@@ -207,7 +200,8 @@ internal class HolidayActions(
                             }
                             3->{
                                 item{HolidayPreview(prefs,sheet==null,150)}
-                                item{HolidayCard("Holiday details","Little things that make it feel like Christmas."){
+                                if(!state.plus.owned)item{HolidayPlusCard(state.plus){sheet="plus"}}
+                                item{HolidayCard("Holiday details","Holiday Plus adds the little things that make it feel like Christmas."){
                                     listOf("Candy canes" to "candy","Presents" to "gifts","Christmas trees" to "trees","Snowmen" to "snowmen","Glass bulbs" to "bulbs","Golden stars" to "stars","Confetti" to "confetti").forEach{(title,key)->HolidayToggle(prefs,state,actions,title,key,false)}
                                 }}
                             }
@@ -221,11 +215,16 @@ internal class HolidayActions(
                 containerColor=colors.background,contentColor=colors.onBackground){
                 LazyColumn(Modifier.fillMaxWidth().fillMaxHeight(.92f).imePadding(),contentPadding=PaddingValues(20.dp,0.dp,20.dp,24.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
                     item{Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-                        Text(when(open){"appearance"->"Studio appearance";"saved"->"My Christmas scenes";"setup"->"Set up your Pixel";"privacy"->PrivacyPolicy.TITLE;else->"Settings & safety"},
+                        Text(when(open){"appearance"->"Studio appearance";"saved"->"My Christmas scenes";"setup"->"Set up your Pixel";"privacy"->PrivacyPolicy.TITLE;"plus"->"SnowGlobe Holiday Plus";"wallpapers"->"Winter wallpapers";else->"Settings & safety"},
                             modifier=Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)
                         TextButton(onClick={sheet=null}){Text("Done")}
                     }}
                     when(open){
+                        "plus"->{item{HolidayPlusDetails(state.plus,actions){sheet=null}}}
+                        "wallpapers"->{
+                            item{Text("Four original winter illustrations. Save a full-resolution 2160 × 3840 PNG, then set it in Android's Wallpaper & style.",style=MaterialTheme.typography.bodyMedium,color=colors.onSurfaceVariant)}
+                            items(WallpaperArt.NAMES.size){design->WallpaperGalleryCard(design,state,actions)}
+                        }
                         "appearance"->{
                             item{Text("A different look for the app itself. Your snow, lights, wallpaper, saved scenes and Pause stay exactly as they are.",style=MaterialTheme.typography.bodyMedium,color=colors.onSurfaceVariant)}
                             val ids=listOf(HolidayThemeTokens.CLASSIC,HolidayThemeTokens.EVERGREEN,HolidayThemeTokens.CANDLELIGHT,HolidayThemeTokens.PIXEL)
@@ -265,7 +264,8 @@ internal class HolidayActions(
                                 HolidayChoice(prefs,state,actions,"Animation quality","qualityMode",listOf("Eco - up to 30 fps","Balanced - up to 60 fps","Smooth - up to 120 fps","Auto - adapts to your screen"),3)
                                 Text("Auto is recommended. It selects a conservative 30 or 60 fps target from your display; Battery Saver and heat lower the limit further. Smooth is an upper limit, not a guarantee.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                             }}
-                            item{Text("All beta features are unlocked. No checkout or paywall is active.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
+                            item{OutlinedButton(onClick={sheet="plus"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text(if(state.plus.owned)"Holiday Plus · unlocked"else "Holiday Plus & restore purchases")}}
+                            item{Text("Free snow, lights and starter wallpapers. Holiday Plus is a one-time upgrade, with no subscription.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
                         }
                     }
                 }
@@ -310,13 +310,13 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
         Column(Modifier.background(Brush.verticalGradient(listOf(c.surface,c.primaryContainer.copy(alpha=.32f)))).padding(20.dp)){
             Row(verticalAlignment=Alignment.CenterVertically){
                 Column(Modifier.weight(1f)){
-                    Text("YOUR HOLIDAY, YOUR WAY",style=MaterialTheme.typography.labelSmall,letterSpacing=1.6.sp,color=c.primary)
-                    Text("Make room for magic.",fontFamily=FontFamily.Serif,fontWeight=FontWeight.Medium,fontSize=27.sp,lineHeight=32.sp)
+                    Text("A LITTLE WINTER WONDER",style=MaterialTheme.typography.labelSmall,letterSpacing=1.6.sp,color=c.primary)
+                    Text("Let it snow.",fontFamily=FontFamily.Serif,fontWeight=FontWeight.Medium,fontSize=27.sp,lineHeight=32.sp)
                 }
                 HolidaySprig(Modifier.size(48.dp),c.secondary)
             }
             Text("Current scene: "+(prefs.getString("selectedScene","Custom")?:"Custom"),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
-            Spacer(Modifier.height(14.dp));HolidayPreview(prefs,previewActive,174)
+            Spacer(Modifier.height(14.dp));HolidayPreview(prefs,previewActive,220)
             Spacer(Modifier.height(12.dp))
             Text(when{!state.permission->"Overlay permission needed";service=="error"->"Effects need attention";active->"Over-app effects on";else->"Paused · preview only"},
                 style=MaterialTheme.typography.labelLarge,color=if(service=="error")c.error else c.primary)
@@ -366,7 +366,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
                         Spacer(Modifier.height(3.dp))
                         Text(recipe.description,style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant,minLines=2)
                         Spacer(Modifier.height(10.dp))
-                        Text(if(selected)"Selected ✓"else "Apply scene",style=MaterialTheme.typography.labelMedium,color=c.primary)
+                        Text(if(HolidayAccess.plusScene(recipe.name)&&!state.plus.owned)"Holiday Plus"else if(selected)"Selected ✓"else "Apply scene",style=MaterialTheme.typography.labelMedium,color=c.primary)
                     }
                 }
             }
@@ -396,6 +396,62 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
         confirmButton={TextButton(onClick={actions.save(index,name);editing=null}){Text("Save")}},dismissButton={TextButton(onClick={editing=null}){Text("Cancel")}})}
 }
 
+@Composable private fun HolidayPlusCard(plus:PlusUiState,onOpen:()->Unit){
+    val c=MaterialTheme.colorScheme
+    Surface(color=c.primaryContainer,shape=RoundedCornerShape(26.dp),border=BorderStroke(1.dp,c.primary.copy(alpha=.35f))){
+        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
+                Icon(painterResource(R.drawable.ic_holiday_plus),null,Modifier.size(26.dp),tint=c.onPrimaryContainer)
+                Text("Holiday Plus",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,color=c.onPrimaryContainer)
+            }
+            Text(if(plus.owned)"Your extra holiday effects and exclusive wallpapers are unlocked."else "Presents, candy canes, playful motion and exclusive winter wallpapers.",color=c.onPrimaryContainer,style=MaterialTheme.typography.bodyMedium)
+            Text("One-time upgrade · no subscription",color=c.onPrimaryContainer,style=MaterialTheme.typography.labelMedium)
+            OutlinedButton(onClick=onOpen,modifier=Modifier.fillMaxWidth().heightIn(min=50.dp)){
+                Text(if(plus.owned)"Manage Holiday Plus"else "Explore Holiday Plus")
+            }
+        }
+    }
+}
+
+@Composable private fun HolidayPlusDetails(plus:PlusUiState,actions:HolidayActions,onContinue:()->Unit){
+    val c=MaterialTheme.colorScheme
+    Column(verticalArrangement=Arrangement.spacedBy(18.dp)){
+        HolidayArtwork(4,Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(24.dp)))
+        Text(if(plus.owned)"Your winter, with all the extras."else "A little more Christmas.",fontFamily=FontFamily.Serif,fontSize=28.sp,lineHeight=34.sp)
+        Text("Keep free snowfall, lights, colors and two 4K wallpapers. Holiday Plus adds:",style=MaterialTheme.typography.bodyMedium)
+        listOf(
+            "Festive decorations" to "Presents, candy canes, snowmen, trees, stars, glass bulbs and confetti.",
+            "Extra movement & scenes" to "Custom directions, rotation, floating fairy lights and three additional scene recipes.",
+            "Exclusive 4K artwork" to "Candlelight Village and Aurora Night, saved at full resolution."
+        ).forEach{(title,detail)->Column{Text(title,fontWeight=FontWeight.SemiBold);Text(detail,style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)}}
+        Text("One-time purchase. No subscription. Restore with the Google Play account that owns your upgrade.",style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
+        if(!plus.configured&&!plus.owned)Text("Holiday Plus is not available in this release yet. Free snow, lights and starter wallpapers are ready to use.",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
+        if(plus.pending)Text("Your payment is pending. Plus unlocks after Google Play confirms it; you do not need to buy again.",color=c.primary)
+        Text(plus.message,style=MaterialTheme.typography.bodyMedium,color=if(plus.owned)c.primary else c.onSurfaceVariant)
+        Button(onClick=actions.buyPlus,enabled=plus.canBuy&&!plus.busy&&!plus.owned,
+            modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)){
+            Text(when{plus.owned->"Holiday Plus unlocked";plus.pending->"Payment pending";plus.busy->"Checking Google Play…";plus.canBuy->"Unlock once · ${plus.price}";else->"Available through Google Play"},fontWeight=FontWeight.Bold)
+        }
+        OutlinedButton(onClick=actions.restorePlus,enabled=!plus.busy,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Restore purchases")}
+        TextButton(onClick=onContinue,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(if(plus.owned)"Return to my winter"else "Continue with free snow")}
+    }
+}
+
+@Composable private fun WallpaperGalleryCard(design:Int,state:HolidayUiState,actions:HolidayActions){
+    val bitmap=remember(design){WallpaperArt.render(design,360,640).asImageBitmap()}
+    val locked=HolidayAccess.plusWallpaper(design)&&!state.plus.owned
+    HolidayCard(WallpaperArt.NAMES[design],if(HolidayAccess.plusWallpaper(design))"Holiday Plus · 4K original"else "Included free · 4K original"){
+        Image(bitmap,WallpaperArt.NAMES[design]+" winter wallpaper",Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(20.dp)),contentScale=ContentScale.Crop)
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(onClick={if(locked)actions.openPlus()else actions.saveWallpaper(design)},enabled=!state.wallpaperBusy,
+            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp).semantics{
+                contentDescription=if(locked)"Unlock ${WallpaperArt.NAMES[design]} with Holiday Plus"else "Save ${WallpaperArt.NAMES[design]} 4K wallpaper"
+            }){
+            Text(if(state.wallpaperBusy)"Saving wallpaper…"else if(locked)"Unlock with Holiday Plus"else "Save 4K wallpaper")
+        }
+    }
+}
+
 @Composable private fun HolidayHeading(title:String){Text(title,style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,modifier=Modifier.semantics{heading()})}
 @Composable private fun HolidayCard(title:String,subtitle:String,content:@Composable ColumnScope.()->Unit){
     val c=MaterialTheme.colorScheme
@@ -404,14 +460,16 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
     }
 }
 @Composable private fun HolidayToggle(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions,title:String,key:String,default:Boolean,detail:String?=null){
-    val checked=remember(key,state.revision){prefs.getBoolean(key,default)}
-    Row(Modifier.fillMaxWidth().heightIn(min=60.dp).toggleable(value=checked,role=Role.Switch,onValueChange={actions.setBoolean(key,it)}).padding(vertical=8.dp),
+    val locked=HolidayAccess.plusSwitch(key)&&!state.plus.owned
+    val checked=remember(key,state.revision,state.plus.owned){!locked&&prefs.getBoolean(key,default)}
+    Row(Modifier.fillMaxWidth().heightIn(min=60.dp).toggleable(value=checked,role=Role.Switch,onValueChange={if(locked)actions.openPlus()else actions.setBoolean(key,it)}).padding(vertical=8.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
-        Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.bodyLarge);if(detail!=null)Text(detail,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.bodyLarge);if(locked)Text("Holiday Plus",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);if(detail!=null)Text(detail,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
         Switch(checked=checked,onCheckedChange=null)
     }
 }
 @Composable private fun HolidaySlider(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions,title:String,key:String,default:Int){
+    val locked=HolidayAccess.plusNumber(key)&&!state.plus.owned
     val saved=remember(key,state.revision){prefs.getInt(key,default).coerceIn(0,100)}
     var value by remember(key){mutableFloatStateOf(saved.toFloat())};var dragging by remember{mutableStateOf(false)}
     LaunchedEffect(saved){if(!dragging)value=saved.toFloat()}
@@ -420,17 +478,19 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
             Text(title,Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
             Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.primaryContainer){Text("${value.toInt()}%",color=MaterialTheme.colorScheme.onPrimaryContainer,style=MaterialTheme.typography.labelLarge,modifier=Modifier.padding(horizontal=10.dp,vertical=5.dp))}
         }
-        Slider(value=value,valueRange=0f..100f,onValueChange={dragging=true;value=it},onValueChangeFinished={dragging=false;actions.setNumber(key,value.toInt())},
+        Slider(value=value,enabled=!locked,valueRange=0f..100f,onValueChange={dragging=true;value=it},onValueChangeFinished={dragging=false;actions.setNumber(key,value.toInt())},
             modifier=Modifier.heightIn(min=48.dp).semantics{contentDescription=title})
+        if(locked)TextButton(onClick=actions.openPlus){Text("Customize with Holiday Plus")}
     }
 }
 @Composable private fun HolidayChoice(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions,title:String,key:String,options:List<String>,default:Int){
-    val index=remember(key,state.revision){prefs.getInt(key,default).coerceIn(options.indices)}
+    val locked=HolidayAccess.plusNumber(key)&&!state.plus.owned
+    val index=remember(key,state.revision,state.plus.owned){if(locked)default else prefs.getInt(key,default).coerceIn(options.indices)}
     var open by remember{mutableStateOf(false)}
     Column(Modifier.fillMaxWidth().padding(vertical=10.dp)){
         Text(title,style=MaterialTheme.typography.bodyLarge);Spacer(Modifier.height(8.dp))
-        Box{OutlinedButton(onClick={open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp)){
-            Text(options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))}
+        Box{OutlinedButton(onClick={if(locked)actions.openPlus()else open=true},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp)){
+            Text(if(locked)options[index]+" · Holiday Plus"else options[index],Modifier.weight(1f));Text("\u2304",Modifier.padding(start=8.dp))}
             DropdownMenu(expanded=open,onDismissRequest={open=false}){options.forEachIndexed{i,label->DropdownMenuItem(text={Text(label)},onClick={actions.setNumber(key,i);open=false})}}
         }
     }

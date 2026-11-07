@@ -32,6 +32,17 @@ public final class MotionMath {
         t = clamp(t, 0f, 1f);
         return t * t * (3f - 2f * t);
     }
+    /**
+     * Two slow air currents rather than a new random direction every frame.
+     * Renderers apply the difference between consecutive samples, so the total
+     * drift does not depend on whether the display produces 30, 60 or 120 frames.
+     * The output stays within [-1,1] and no random objects or buffers are created.
+     */
+    public static float snowSway(float seconds,float phase,float depth){
+        float frequency=.34f+.11f*depth;
+        return (float)(.76*Math.sin(seconds*frequency+phase)
+            +.24*Math.sin(seconds*(frequency*.47f)+phase*1.73f));
+    }
     /** Soft entry and exit. No single-frame full-intensity flashes. */
     public static float envelope(float age, float life) {
         if (age <= 0f || life <= 0f || age >= life) return 0f;
