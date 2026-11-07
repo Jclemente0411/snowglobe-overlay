@@ -63,6 +63,7 @@ jobs:
       - name: Record emulator host baseline
         run: timeout 30s bash scripts/capture_emulator_host_diagnostics.sh before-emulator || true
       - name: Real window, input, overlay and UI tests
+        id: device_tests
         uses: reactivecircus/android-emulator-runner@v2
         env:
           EXPECTED_ANDROID_API: ${{ matrix.api }}
@@ -88,6 +89,10 @@ jobs:
           # Keep Android 17's backend; isolate Android 15's host native crash via GLES only.
           emulator-options: -no-window ${{ matrix.emulator_graphics }} -noaudio -no-boot-anim -camera-back none
           script: bash scripts/run_device_checks.sh
+      - name: Capture bounded native emulator failure details
+        if: always() && steps.device_tests.outcome == 'failure'
+        timeout-minutes: 2
+        run: timeout --kill-after=5s 85s bash scripts/capture_emulator_native_triage.sh || true
       - name: Retain host diagnostics even when emulator startup fails
         if: always()
         run: timeout 30s bash scripts/capture_emulator_host_diagnostics.sh after-emulator || true

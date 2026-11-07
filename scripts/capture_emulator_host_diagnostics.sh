@@ -17,6 +17,8 @@ capture() {
 }
 
 capture timestamp.txt date -u '+%Y-%m-%dT%H:%M:%SZ'
+capture uname.txt uname -a
+capture lscpu.txt lscpu
 capture memory.txt free -m
 capture host-meminfo.txt cat /proc/meminfo
 capture memory-pressure.txt cat /proc/pressure/memory
@@ -78,24 +80,57 @@ with (output / 'cgroups.txt').open('w') as report:
 
 with (output / 'emulator-processes.txt').open('w') as report:
     selected = 0
+    mapped = 0
     for process in Path('/proc').iterdir():
         if not process.name.isdigit():
             continue
         name = read_bounded(process / 'comm', 128).strip()
+        # Keep the executable load bias before a native crash removes /proc/PID.
+        # Never read process memory, command lines or environment variables.
+        try:
+            executable = (process / 'exe').resolve(strict=True)
+            if executable.name == 'qemu-system-x86_64-headless' and mapped < 4:
+                with (process / 'maps').open('rb') as handle:
+                    (output / f'qemu-{process.name}-maps.txt').write_bytes(handle.read(262144))
+                mapped += 1
+        except OSError:
+            pass
         if not any(part in name.lower() for part in ('qemu', 'emulator', 'java', 'adb', 'netsim')):
             continue
         selected += 1
         if selected > 32:
-            report.write('Process record limit reached.\n')
-            break
+            if selected == 33:
+                report.write('Process record limit reached.\n')
+            continue
         for filename in ('status', 'oom_score', 'oom_score_adj', 'cgroup'):
             report.write(f'\nPID {process.name} {filename}\n{read_bounded(process / filename)}')
 
+# Use the same dotted-API validator as the device gate, then limit the selected
+# source.properties to the SDK system-images tree. Diagnostic failure is benign.
+with (output / 'system-image-selection.txt').open('w') as report:
+    try:
+        sys.path.insert(0, str(Path('scripts').resolve()))
+        from verify_android_avd import properties, verify
+        name = os.environ['SNOWGLOBE_AVD_NAME']
+        expected = os.environ['EXPECTED_ANDROID_API']
+        avd_home = Path(os.environ.get('ANDROID_AVD_HOME', str(Path.home() / '.android/avd')))
+        verify(avd_home, name, expected)
+        root_ini = properties(avd_home / (name + '.ini'))
+        config = properties(Path(root_ini['path']) / 'config.ini')
+        sdk = Path(os.environ['ANDROID_HOME']).resolve(strict=True)
+        image = (sdk / config['image.sysdir.1'].replace('\\', '/')).resolve(strict=True)
+        if not image.is_relative_to((sdk / 'system-images').resolve(strict=True)):
+            raise ValueError('Selected image is outside the SDK system-images tree')
+        source = image / 'source.properties'
+        with source.open('rb') as handle:
+            (output / 'system-image-source.properties').write_bytes(handle.read(16384))
+        report.write(f'Verified AVD: {name}\nExpected API: {expected}\nSource: {source}\n')
+    except (KeyError, ValueError, OSError) as error:
+        report.write(f'Unavailable: {error}\n')
+
 # Crashpad uses emu-crash-<version>.db directories under /tmp/android-<user>.
-# Retain metadata and short text tails. Copy only small binary crash records;
-# never collect a core dump or an unbounded emulator/guest memory snapshot.
+# Retain metadata and short text tails only; never upload raw cores/minidumps.
 roots = {Path('/tmp/android-runner'), Path('/tmp') / ('android-' + getpass.getuser())}
-copied_bytes = 0
 record_count = 0
 with (output / 'emulator-crashes.txt').open('w') as report:
     for crash_root in sorted(roots):
@@ -121,16 +156,6 @@ with (output / 'emulator-crashes.txt').open('w') as report:
                         with path.open('rb') as handle:
                             handle.seek(max(0, stat.st_size - 65536))
                             report.write(handle.read(65536).decode('utf-8', errors='replace') + '\n')
-                    elif (path.suffix.lower() in ('.dmp', '.metadata', '.db')
-                          and stat.st_size <= 8 * 1024 * 1024
-                          and copied_bytes + stat.st_size <= 16 * 1024 * 1024):
-                        with path.open('rb') as handle:
-                            data = handle.read(8 * 1024 * 1024 + 1)
-                        if len(data) <= 8 * 1024 * 1024 and copied_bytes + len(data) <= 16 * 1024 * 1024:
-                            destination = output / 'crash-records'
-                            destination.mkdir(exist_ok=True)
-                            (destination / f'{record_count:03d}-{path.name}').write_bytes(data)
-                            copied_bytes += len(data)
                 except OSError as error:
                     report.write(f'Unavailable: {error}\n')
             if record_count > 128:
