@@ -36,14 +36,18 @@ public final class SceneSnapshot {
     public String encode(){
         StringBuilder out=new StringBuilder(HEADER).append('\n');
         for(Map.Entry<String,Object> e:values.entrySet())out.append(e.getKey()).append('=').append(e.getValue()).append('\n');
-        return out.toString();
+        // A terminal newline can acquire indentation when Android serializes the value in XML.
+        // Keep new files unambiguous; decode still accepts previously persisted scene values.
+        return out.substring(0,out.length()-1);
     }
     public static SceneSnapshot decode(String encoded){
         if(encoded==null||encoded.length()>8192)throw new IllegalArgumentException("Invalid scene");
         String[] lines=encoded.split("\n");
-        if(lines.length<3||!HEADER.equals(lines[0]))throw new IllegalArgumentException("Unsupported scene");
+        int lineCount=lines.length;
+        while(lineCount>1&&lines[lineCount-1].matches("[ \t\r]*"))lineCount--;
+        if(lineCount<3||!HEADER.equals(lines[0]))throw new IllegalArgumentException("Unsupported scene");
         Map<String,Object> parsed=new LinkedHashMap<>();
-        for(int i=1;i<lines.length;i++){
+        for(int i=1;i<lineCount;i++){
             String[] pair=lines[i].split("=",-1);
             if(pair.length!=2||!DEFAULTS.containsKey(pair[0])||parsed.containsKey(pair[0]))throw new IllegalArgumentException("Invalid scene field");
             Object def=DEFAULTS.get(pair[0]);String raw=pair[1];

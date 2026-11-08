@@ -45,7 +45,7 @@ p=Path('upgrade-evidence')
 for state in ('false','true'):
     for phase in ('seed','verify'):
         assert f'upgrade_result=PASS {phase} enabled={state}' in (p/f'{state}-{phase}.txt').read_text()
-(p/'summary.json').write_text(json.dumps({'baselineVersionCode':100031,'candidateVersionCode':100032,
+(p/'summary.json').write_text(json.dumps({'baselineVersionCode':100031,'candidateVersionCode':100033,
     'sameCertificateAdbReplacement':True,'pausedStatePreserved':True,'enabledStatePreserved':True,
     'visualSettingsAndSavedScenesPreserved':True,'realPlayDeliveryVerified':False,
     'purchaseVerified':False},indent=2)+'\n')

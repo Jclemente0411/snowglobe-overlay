@@ -203,7 +203,7 @@ jobs:
           python3 - <<'PY'
           import json
           m=json.load(open('app/build/reports/release-metadata.json'))
-          expected={'applicationId':'com.snowglobe.overlay','versionCode':100032,'versionName':'0.22.3','targetSdk':36}
+          expected={'applicationId':'com.snowglobe.overlay','versionCode':100033,'versionName':'0.22.3','targetSdk':36}
           for key,value in expected.items():
               if m.get(key)!=value: raise SystemExit('Wrong release metadata: '+key)
           if m.get('billingProductId')!='holiday_plus_lifetime': raise SystemExit('Wrong Holiday Plus product')
@@ -227,7 +227,7 @@ jobs:
           cp "$RUNNER_TEMP/universal.apk" upgrade-inputs/candidate.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/upload-key.jks" --ks-key-alias "$PLAY_KEY_ALIAS" --ks-pass env:PLAY_STORE_PASSWORD --key-pass env:PLAY_KEY_PASSWORD --out upgrade-inputs/probe.apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose upgrade-inputs/probe.apk > release/upgrade-probe-signature.txt
-          cp "$AAB" release/SnowGlobe-0.22.3-build100032.aab
+          cp "$AAB" release/SnowGlobe-0.22.3-build100033.aab
           cp app/build/reports/release-metadata.json release/
           git rev-parse HEAD > release/source-commit.txt
           cd release

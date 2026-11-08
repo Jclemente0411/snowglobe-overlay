@@ -1,0 +1,115 @@
+name: Verify immutable 0.22.3 signed candidate upgrades
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/0223-upgrade-runner]
+    paths-ignore: ['docs/**', 'README.md']
+permissions:
+  contents: read
+  actions: read
+jobs:
+  signed_upgrade:
+    name: Android ${{ matrix.api }} immutable signed upgrade
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: '35'
+            emulator_build: '15917651'
+            gpu: host
+          - api: '37.0'
+            emulator_build: '16740729'
+            gpu: software
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify application inputs match the fully tested signed source
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only e38ba8f625651a03054dc78560cbd9edcfb439d0 HEAD -- app/src/main app/build.gradle build.gradle settings.gradle gradle.properties)"
+          mkdir -p upgrade-evidence
+          git rev-parse HEAD > upgrade-evidence/probe-source.txt
+          printf '%s\n' e38ba8f625651a03054dc78560cbd9edcfb439d0 > upgrade-evidence/application-source.txt
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+      - name: Install SDK tools and build the registered verification probe
+        run: |
+          bash scripts/install_android_cmdline_tools.sh
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'build-tools;36.0.0'
+          gradle --no-daemon --init-script scripts/upgrade-probe.init.gradle :app:assembleDebugAndroidTest
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump xmltree app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk --file AndroidManifest.xml > upgrade-evidence/probe-manifest.txt
+          grep -F 'com.snowglobe.overlay.UpgradeProbeInstrumentation' upgrade-evidence/probe-manifest.txt
+      - name: Verify exact baseline and candidate bundles, derive APKs, sign only the probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p upgrade-inputs
+          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/Jclemente0411/snowglobe-overlay/actions/artifacts/13598571700/zip -o "$RUNNER_TEMP/baseline.zip"
+          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/Jclemente0411/snowglobe-overlay/actions/artifacts/13626910547/zip -o "$RUNNER_TEMP/candidate.zip"
+          unzip -j "$RUNNER_TEMP/baseline.zip" 'SnowGlobe-0.22.2-build100031.aab' -d "$RUNNER_TEMP"
+          unzip -j "$RUNNER_TEMP/candidate.zip" 'SnowGlobe-0.22.3-build100032.aab' -d "$RUNNER_TEMP"
+          printf '%s  %s\n' bab3bc1f2f20d86f29e8b04c2eec0e548aab120c5e65a9c27ea5e1fdb0797b24 "$RUNNER_TEMP/SnowGlobe-0.22.2-build100031.aab" | sha256sum -c - > upgrade-evidence/baseline-checksum.txt
+          printf '%s  %s\n' 60e8f12a83af05b5a380fb215c2235145e0a9f82061c5067a6fede3752d654f0 "$RUNNER_TEMP/SnowGlobe-0.22.3-build100032.aab" | sha256sum -c - > upgrade-evidence/candidate-checksum.txt
+          curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/upgrade-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upgrade-key.jks"
+          printf '%s\n' "$PLAY_STORE_PASSWORD" > "$RUNNER_TEMP/store-pass.txt"
+          printf '%s\n' "$PLAY_KEY_PASSWORD" > "$RUNNER_TEMP/key-pass.txt"
+          for pair in baseline:SnowGlobe-0.22.2-build100031 candidate:SnowGlobe-0.22.3-build100032; do
+            label=${pair%%:*}
+            name=${pair#*:}
+            keytool -J-Duser.language=en -printcert -jarfile "$RUNNER_TEMP/$name.aab" > "upgrade-evidence/$label-certificate.txt"
+            grep -F 'SHA256: 73:45:EE:F8:97:0F:7F:8D:E6:20:BB:F7:C0:4B:28:03:0D:F9:C2:F7:A1:D6:8B:68:E5:E0:72:C1:04:8F:48:A4' "upgrade-evidence/$label-certificate.txt"
+            java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$RUNNER_TEMP/$name.aab" --output="$RUNNER_TEMP/$label.apks" --mode=universal --ks="$RUNNER_TEMP/upgrade-key.jks" --ks-key-alias="$PLAY_KEY_ALIAS" --ks-pass="file:$RUNNER_TEMP/store-pass.txt" --key-pass="file:$RUNNER_TEMP/key-pass.txt"
+            unzip -p "$RUNNER_TEMP/$label.apks" universal.apk > "upgrade-inputs/$label.apk"
+          done
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/upgrade-key.jks" --ks-key-alias "$PLAY_KEY_ALIAS" --ks-pass env:PLAY_STORE_PASSWORD --key-pass env:PLAY_KEY_PASSWORD --out upgrade-inputs/probe.apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose upgrade-inputs/probe.apk > upgrade-evidence/probe-signature.txt
+      - name: Prepare emulator acceleration and graphics
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+          if [ "${{ matrix.gpu }}" = host ]; then bash scripts/prepare_llvmpipe.sh; fi
+      - name: Replace the installed signed baseline without uninstalling or clearing its data
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          UPGRADE_BASELINE_APK: upgrade-inputs/baseline.apk
+          UPGRADE_CANDIDATE_APK: upgrade-inputs/candidate.apk
+          UPGRADE_PROBE_APK: upgrade-inputs/probe.apk
+        with:
+          api-level: ${{ matrix.api }}
+          system-image-api-level: ${{ matrix.api }}
+          emulator-build: ${{ matrix.emulator_build }}
+          channel: stable
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu ${{ matrix.gpu }} -feature -Vulkan -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/run_signed_upgrade_checks.sh
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upgrade-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SnowGlobe-immutable-upgrade-${{ matrix.api }}-${{ github.run_number }}-${{ github.run_attempt }}
+          path: upgrade-evidence/
+          if-no-files-found: error
+          retention-days: 14

@@ -37,7 +37,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                 require(Integer.valueOf(73).equals(scenes.read(2).values().get("density")),"Baseline scene did not round-trip");
                 require(prefs.edit().putString("_upgradeSceneEncoded",fixtureScene).commit(),"Could not persist fixture comparison");
             }else if("verify".equals(phase)){
-                require(version==100032,"New bundle was not installed");
+                require(version==100033,"New bundle was not installed");
                 require("0222-to-0223".equals(prefs.getString("_upgradeProbe","")),"Update lost app data");
                 require(prefs.getBoolean("effectsEnabled",!enabled)==enabled,"Update changed explicit playback state");
                 require(prefs.getInt("density",-1)==73&&prefs.getInt("snowVisibility",-1)==61,"Update lost visual settings");

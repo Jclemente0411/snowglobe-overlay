@@ -4,10 +4,10 @@ Prepared November 8, 2026. **Not approved for paid production rollout.**
 
 ## Intended identity
 
-- Package: `com.snowglobe.overlay`; version name `0.22.3`; candidate code `100032`.
+- Package: `com.snowglobe.overlay`; version name `0.22.3`; candidate code `100033`.
 - Source starts from the reviewed `fix/ship-readiness-0216` release handoff.
 - Keep the existing upload key and Play App Signing identity. No signing-key reset.
-- Before upload, inspect Play Console's highest uploaded version code. If 100032 is already used, increase it and update all release/upgrade expectations before rebuilding.
+- Before upload, inspect Play Console's highest uploaded version code. If 100033 is already used, increase it and update all release/upgrade expectations before rebuilding.
 - Do not replace, unpublish, or delete the working 0.22.2 release during preparation.
 
 ## Corrective behavior
@@ -26,7 +26,7 @@ The workflow runs the complete JVM/lint and device suites on Android 15 and 17, 
 
 After signing, separate disposable-emulator jobs derive the baseline APK from the exact delivered 0.22.2 AAB (SHA-256 `bab3bc1f2f20d86f29e8b04c2eec0e548aab120c5e65a9c27ea5e1fdb0797b24`). Both APKs and the CI-only instrumentation are signed with the existing upload certificate. Each job tests:
 
-1. Install baseline 100031, seed paused settings/scene, replace with 100032 using `adb install -r` without uninstalling, verify installed version, data, scene, overlay permission and sticky Pause.
+1. Install baseline 100031, seed paused settings/scene, replace with 100033 using `adb install -r` without uninstalling, verify installed version, data, scene, overlay permission and sticky Pause.
 2. Repeat from a separate fresh baseline with effects enabled; verify data and that effects resume after opening Studio and returning Home.
 
 These establish same-certificate Android replacement only. They do **not** establish Play App Signing delivery, store propagation, installation on the owner's phone, trial receipt continuity across a real device update, payment, or performance at 120 Hz. Validate the update from the actual Play test track on a device already running 0.22.2, without uninstalling or clearing data. Check the new in-app version/build number and existing access-code expiry.
@@ -44,3 +44,11 @@ Verify price/activation, cancellation, declined/pending/approved payments, ackno
 ## Rollout approval
 
 Present the actual diff, completed checks, exact signed artifact/checksum, commerce status and unresolved Console/test blockers before asking for approval of an internal-test upload. Paid production remains blocked until a real Play test transaction and Play-delivered update have been observed and the owner explicitly approves the rollout. Retain the old artifact and evidence.
+
+## Persisted-scene correction
+
+The first 100032 candidate passed the complete debug device suites but failed the signed update check: a baseline saved scene acquired trailing blank-line indentation after its SharedPreferences XML was reloaded. The old strict parser rejected that padding. Do not use that superseded candidate for rollout.
+
+Build 100033 avoids terminal newlines in newly encoded scenes and accepts trailing blank lines from already saved scenes. Interior blank lines, unknown fields, duplicate fields, invalid ranges and unsupported schemas remain rejected. The signed update probe preserves the exact baseline scene bytes and validates its visual contents after replacement, so this compatibility fix is checked on persisted data rather than only an in-memory round trip.
+
+The upgrade instrumentation is explicitly registered through AGP's final DSL hook; the full device suite continues to use AndroidJUnitRunner. The temporary immutable-candidate diagnostic workflow is archived, retaining the single gated signing workflow.
