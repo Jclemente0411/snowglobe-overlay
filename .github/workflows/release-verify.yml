@@ -1,14 +1,20 @@
 name: SnowGlobe release verification and signed AAB
 on:
   workflow_dispatch:
+    inputs:
+      require_paid_commerce:
+        description: 'Require a configured licensing key (does not prove a real purchase)'
+        type: boolean
+        default: false
   push:
-    branches: [main, fix/ship-readiness-0216]
+    branches: [main, fix/ship-readiness-0216, fix/0223-touch-upgrade]
     paths-ignore: ['docs/**', 'README.md']
   pull_request:
     branches: [main]
     paths-ignore: ['docs/**', 'README.md']
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: snowglobe-release-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: true
@@ -156,7 +162,7 @@ jobs:
           PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
           PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
           PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
-        run: gradle --no-daemon :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata
+        run: gradle --no-daemon -PrequirePaidCommerce=${{ inputs.require_paid_commerce || false }} :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata :app:assembleDebugAndroidTest
       - name: Ensure 16 KB APK verifier is available
         run: |
           set -euo pipefail
@@ -186,7 +192,7 @@ jobs:
           python3 - <<'PY'
           import json
           m=json.load(open('app/build/reports/release-metadata.json'))
-          expected={'applicationId':'com.snowglobe.overlay','versionCode':100031,'versionName':'0.22.2','targetSdk':36}
+          expected={'applicationId':'com.snowglobe.overlay','versionCode':100032,'versionName':'0.22.3','targetSdk':36}
           for key,value in expected.items():
               if m.get(key)!=value: raise SystemExit('Wrong release metadata: '+key)
           if m.get('billingProductId')!='holiday_plus_lifetime': raise SystemExit('Wrong Holiday Plus product')
@@ -204,7 +210,11 @@ jobs:
           java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$AAB" --output="$RUNNER_TEMP/release.apks" --mode=universal --ks="$RUNNER_TEMP/upload-key.jks" --ks-key-alias="$PLAY_KEY_ALIAS" --ks-pass="file:$RUNNER_TEMP/store-pass.txt" --key-pass="file:$RUNNER_TEMP/key-pass.txt"
           unzip -p "$RUNNER_TEMP/release.apks" universal.apk > "$RUNNER_TEMP/universal.apk"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$RUNNER_TEMP/universal.apk" > release/apk-alignment.txt
-          cp "$AAB" release/SnowGlobe-0.22.2-build100031.aab
+          mkdir -p upgrade-inputs
+          cp "$RUNNER_TEMP/universal.apk" upgrade-inputs/candidate.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/upload-key.jks" --ks-key-alias "$PLAY_KEY_ALIAS" --ks-pass env:PLAY_STORE_PASSWORD --key-pass env:PLAY_KEY_PASSWORD --out upgrade-inputs/probe.apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose upgrade-inputs/probe.apk > release/upgrade-probe-signature.txt
+          cp "$AAB" release/SnowGlobe-0.22.3-build100032.aab
           cp app/build/reports/release-metadata.json release/
           git rev-parse HEAD > release/source-commit.txt
           cd release
@@ -214,7 +224,93 @@ jobs:
         run: rm -f "$RUNNER_TEMP/upload-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: SnowGlobe-0222-signed-AAB-${{ github.run_number }}-${{ github.run_attempt }}
+          name: SnowGlobe-0223-signed-AAB-${{ github.run_number }}-${{ github.run_attempt }}
           path: release/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SnowGlobe-upgrade-inputs-${{ github.run_number }}-${{ github.run_attempt }}
+          path: upgrade-inputs/
+          if-no-files-found: error
+          retention-days: 7
+  signed_upgrade:
+    name: Android ${{ matrix.api }} signed 0.22.2 upgrade
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - api: '35'
+            emulator_build: '15917651'
+            gpu: host
+          - api: '37.0'
+            emulator_build: '16740729'
+            gpu: software
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: SnowGlobe-upgrade-inputs-${{ github.run_number }}-${{ github.run_attempt }}
+          path: upgrade-inputs
+      - name: Download and verify the exact delivered 0.22.2 baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEYSTORE_B64: ${{ secrets.PLAY_UPLOAD_KEYSTORE_BASE64 }}
+          PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
+          PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
+          PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          mkdir -p upgrade-evidence
+          curl --fail --location --silent --show-error -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" https://api.github.com/repos/Jclemente0411/snowglobe-overlay/actions/artifacts/13598571700/zip -o "$RUNNER_TEMP/baseline.zip"
+          unzip -j "$RUNNER_TEMP/baseline.zip" 'SnowGlobe-0.22.2-build100031.aab' -d "$RUNNER_TEMP"
+          printf '%s  %s\n' bab3bc1f2f20d86f29e8b04c2eec0e548aab120c5e65a9c27ea5e1fdb0797b24 "$RUNNER_TEMP/SnowGlobe-0.22.2-build100031.aab" | sha256sum -c - > upgrade-evidence/baseline-checksum.txt
+          curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          umask 077
+          trap 'rm -f "$RUNNER_TEMP/upgrade-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upgrade-key.jks"
+          printf '%s\n' "$PLAY_STORE_PASSWORD" > "$RUNNER_TEMP/store-pass.txt"
+          printf '%s\n' "$PLAY_KEY_PASSWORD" > "$RUNNER_TEMP/key-pass.txt"
+          java -jar "$RUNNER_TEMP/bundletool.jar" build-apks --bundle="$RUNNER_TEMP/SnowGlobe-0.22.2-build100031.aab" --output="$RUNNER_TEMP/baseline.apks" --mode=universal --ks="$RUNNER_TEMP/upgrade-key.jks" --ks-key-alias="$PLAY_KEY_ALIAS" --ks-pass="file:$RUNNER_TEMP/store-pass.txt" --key-pass="file:$RUNNER_TEMP/key-pass.txt"
+          unzip -p "$RUNNER_TEMP/baseline.apks" universal.apk > upgrade-inputs/baseline.apk
+      - name: Prepare Android tools and software graphics
+        run: |
+          bash scripts/install_android_cmdline_tools.sh
+          if [ -e /dev/kvm ]; then sudo chmod 666 /dev/kvm; fi
+          if [ "${{ matrix.gpu }}" = host ]; then bash scripts/prepare_llvmpipe.sh; fi
+      - name: Real signed replacement, preserving data and playback choices
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          UPGRADE_BASELINE_APK: upgrade-inputs/baseline.apk
+          UPGRADE_CANDIDATE_APK: upgrade-inputs/candidate.apk
+          UPGRADE_PROBE_APK: upgrade-inputs/probe.apk
+        with:
+          api-level: ${{ matrix.api }}
+          system-image-api-level: ${{ matrix.api }}
+          emulator-build: ${{ matrix.emulator_build }}
+          channel: stable
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          ram-size: 4096M
+          heap-size: 512M
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu ${{ matrix.gpu }} -feature -Vulkan -noaudio -no-boot-anim -camera-back none
+          script: bash scripts/run_signed_upgrade_checks.sh
+      - name: Remove temporary signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upgrade-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SnowGlobe-signed-upgrade-${{ matrix.api }}-${{ github.run_number }}-${{ github.run_attempt }}
+          path: upgrade-evidence/
           if-no-files-found: error
           retention-days: 14

@@ -34,6 +34,10 @@ public final class SceneSettings {
     }
     private static int integer(SharedPreferences p,String key,int def,int min,int max){return Math.max(min,Math.min(max,p.getInt(key,def)));}
     private static float value(SharedPreferences p,String key,int def){return integer(p,key,def,0,100)/100f;}
+    public boolean hasOverlayContent() {
+        return (snow && snowVisibility > 0 && count > 0) || (lights && brightness > 0)
+            || (decorations.length > 0 && count > 0) || (sparks && sparkDensity > 0);
+    }
     public boolean animated(boolean wallpaper) {
         return ((!reduced)&&((snow&&snowVisibility>0&&count>0)||(wallpaper&&wallpaperSnow&&snowVisibility>0)||(decorations.length>0&&count>0)||(sparks&&sparkDensity>0)))
             || lights&&motion!=0&&brightness>0&&!reduced;

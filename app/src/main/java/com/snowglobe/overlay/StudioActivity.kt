@@ -79,7 +79,7 @@ class StudioActivity:ComponentActivity(){
         savedInstanceState?.getString("undoScene")?.let{try{undo=SceneSnapshot.decode(it);undoName=savedInstanceState.getString("undoName","Custom")}catch(_:IllegalArgumentException){}}
         val actions=HolidayActions(::enable,::openPlaySafely,::addQuickTile,::wallpaperPicker,::changeBoolean,::changeNumber,
             ::applyScene,::restoreUndo,::saveScene,::loadScene,::deleteScene,::systemBars,
-            ::buyPlus,{billing.restore()},::saveWallpaper,{plusRequest++},::activateCode)
+            ::buyPlus,{billing.restore()},::saveWallpaper,{plusRequest++},::activateCode,::wallpaperOnly)
         setContent{HolidayStudio(prefs,scenes,HolidayUiState(revision,permission,lockApplied,lockCheckAvailable,setupError,setupMessage,undo!=null,plus,plusRequest,wallpaperBusy),actions)}
         billing.start()
     }
@@ -180,6 +180,12 @@ class StudioActivity:ComponentActivity(){
     private fun checkWallpaper(){
         lockApplied=false;lockCheckAvailable=Build.VERSION.SDK_INT>=34
         if(Build.VERSION.SDK_INT>=34)try{lockApplied=WallpaperStatus.isAppliedToLockScreen(this)}catch(_:RuntimeException){lockCheckAvailable=false}
+    }
+    private fun wallpaperOnly(){
+        // Removing the window, rather than making flakes transparent, restores protected taps.
+        EffectsService.pauseNow(this);revision++
+        setupMessage="Over-app effects are paused. Choose SnowGlobe below for Home or Lock wallpaper. Resume over-app effects only when you want them."
+        wallpaperPicker()
     }
     private fun wallpaperPicker(){
         setupError=null
