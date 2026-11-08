@@ -1,0 +1,124 @@
+{
+  "file_name": "SnowGlobe-0.22.2-build100031.aab",
+  "bytes": 8180791,
+  "sha256": "bab3bc1f2f20d86f29e8b04c2eec0e548aab120c5e65a9c27ea5e1fdb0797b24",
+  "source_commit": "f6f65700f00559e6cb36776d7020a92f301f2341",
+  "upload_certificate_sha256": "7345eef8970f7f8de620bbf7c04b28030df9c2f7a1d68b68e5e072c1048f48a4",
+  "signed_payload_entries_checked": 197,
+  "metadata": {
+    "applicationId": "com.snowglobe.overlay",
+    "versionCode": 100031,
+    "versionName": "0.22.2",
+    "targetSdk": 36,
+    "billingProductId": "holiday_plus_lifetime",
+    "commerceConfigured": false
+  },
+  "archive_integrity": "passed",
+  "checksum_match": true,
+  "upload_certificate_unchanged": true,
+  "custom_keyboard_service_present": false,
+  "physical_pixel_installation_verified": false,
+  "complimentary_access_codes_match_compiled_release": true,
+  "production_codes_embedded_as_plaintext": false,
+  "test_campaigns_present_in_release": false,
+  "trial_campaigns": [
+    {
+      "id": "owner_0222",
+      "duration_days": 90
+    },
+    {
+      "id": "share_0222",
+      "duration_days": 7
+    }
+  ],
+  "trial_campaign_hard_end_utc": "2027-03-01T00:00:00Z",
+  "repository": "Jclemente0411/snowglobe-overlay",
+  "branch": "fix/ship-readiness-0216",
+  "ci": {
+    "run_id": 42431191659,
+    "run_number": 22,
+    "run_attempt": 1,
+    "url": "https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42431191659",
+    "source_commit": "f6f65700f00559e6cb36776d7020a92f301f2341",
+    "signing_job_id": 128584897541,
+    "signing_build_lint_signature_metadata_16kb_checks": "passed",
+    "temporary_signing_key_removed": true,
+    "artifact_upload": "passed",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "actions_artifact": {
+    "id": 13598571700,
+    "name": "SnowGlobe-0222-signed-AAB-22-1",
+    "zip_sha256": "23f0eca7f805bda01ba688cb97127ea7d7f7cd3f18f325e894c10445ad146073"
+  },
+  "device_evidence": {
+    "android15": {
+      "source_commit": "f6f65700f00559e6cb36776d7020a92f301f2341",
+      "android_api": 35,
+      "unit_tests": 110,
+      "trial_unit_tests": 19,
+      "preflight_tests": 5,
+      "device_tests": 41,
+      "trial_device_tests": [
+        {
+          "name": "expiryInvalidatesVisiblePreviewAndRelocksControlsWithoutErasingScenes",
+          "classname": "com.snowglobe.overlay.HolidayTrialAccessUiTest",
+          "time": "11.549"
+        },
+        {
+          "name": "invalidCodeAndPreferenceFlagsCannotGrantTrialOrPurchase",
+          "classname": "com.snowglobe.overlay.HolidayTrialAccessUiTest",
+          "time": "49.17"
+        },
+        {
+          "name": "enteredCodeUnlocksFeaturesAndSurvivesActivityAndStoreRecreation",
+          "classname": "com.snowglobe.overlay.HolidayTrialAccessUiTest",
+          "time": "106.335"
+        }
+      ],
+      "required_screenshots": 12,
+      "all_passed": true,
+      "job_id": 128580224504,
+      "conclusion": "success",
+      "evidence_artifact_id": 13597956534,
+      "evidence_sha256": "507e8a15318c81be0dee68d869d0ab7d187a2432deb8bf6efe1a37aa9ea13b74"
+    },
+    "android17": {
+      "source_commit": "f6f65700f00559e6cb36776d7020a92f301f2341",
+      "android_api": 37,
+      "unit_tests": 110,
+      "trial_unit_tests": 19,
+      "preflight_tests": 5,
+      "device_tests": 41,
+      "trial_device_tests": [
+        {
+          "name": "expiryInvalidatesVisiblePreviewAndRelocksControlsWithoutErasingScenes",
+          "classname": "com.snowglobe.overlay.HolidayTrialAccessUiTest",
+          "time": "22.238"
+        },
+        {
+          "name": "invalidCodeAndPreferenceFlagsCannotGrantTrialOrPurchase",
+          "classname": "com.snowglobe.overlay.HolidayTrialAccessUiTest",
+          "time": "59.791"
+        },
+        {
+          "name": "enteredCodeUnlocksFeaturesAndSurvivesActivityAndStoreRecreation",
+          "classname": "com.snowglobe.overlay.HolidayTrialAccessUiTest",
+          "time": "118.673"
+        }
+      ],
+      "required_screenshots": 12,
+      "all_passed": true,
+      "job_id": 128580224515,
+      "conclusion": "success",
+      "evidence_artifact_id": 13597992876,
+      "evidence_sha256": "194611501127441bd1eec2ed93f9f26e187c2c7f31037206a4b7d9e31fcd0309",
+      "trial_screenshot_review": "passed: readable active-access status, expiry, terms and code entry"
+    }
+  },
+  "commerce_verification_status": "commerce-not-configured",
+  "play_publication_verified": false,
+  "real_paid_purchase_verified": false,
+  "verification_scope": "Signed artifact and emulator verification; installation of this version on the owner device, Play publication, and a real paid transaction have not been observed."
+}

@@ -1,10 +1,12 @@
 # SnowGlobe Holiday Plus — release setup
 
-Prepared November 7, 2026. This is the existing app's one-time upgrade, not a second app. The billing implementation is present in 0.22.0; Console activation and real purchase testing must be separately observed before paid-launch readiness is claimed.
+Updated November 8, 2026 (UTC). This is the existing app's one-time upgrade, not a second app. The billing implementation introduced in 0.22.0 is retained in 0.22.2; Console activation and real purchase testing must be separately observed before paid-launch readiness is claimed.
 
 ## Current signed-build status
 
-The final 0.22.0 / 100029 signed build from [run 42393453546](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42393453546), source `914164b561dc761f501e59df026b4490c738ad2c`, passed the technical release gates. Its completed log explicitly records **`commerceConfigured: false` / `commerce-not-configured`**. The free app is available in that AAB; the $2.99 checkout remains disabled. Complete the configuration and real-transaction steps below, then build a higher version code if 100029 has already been used.
+The **0.22.2 / 100031** signed release from [run 42431191659](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42431191659), source `f6f65700f00559e6cb36776d7020a92f301f2341`, passed its JVM and Android 15/17 device gates. The downloaded AAB passed signature, metadata, 16 KB library, archive and checksum verification and retains the existing upload certificate. See the [release handoff](PLAY_RELEASE_0222.md) for its exact artifact identity and digest.
+
+The Play licensing key remains unconfigured. Actual release metadata records **`commerceConfigured: false` / `commerce-not-configured`**, and the $2.99 checkout remains disabled. Complimentary codes independently unlock the full feature set for testing. Complete the configuration and real-transaction steps below, then build a higher version code if 100031 has already been used.
 
 ## Complimentary access in 0.22.2
 
@@ -37,7 +39,7 @@ Plus: candy canes, presents, trees, snowmen, glass bulbs, stars and confetti; fl
 3. Add a permanent **Buy** purchase option. Set the authorized U.S. price to **$2.99**, choose the intended regions, review local prices/taxes and activate the option. A draft or inactive option is not returned as available to BillingClient. No rental or recurring billing belongs to this product.
 4. In the app's **Monetize → Monetization setup → Licensing**, obtain the genuine base64 RSA licensing public key. This public verification key is distinct from the private upload keystore or its SHA-256 fingerprint.
 5. Store that public value as the repository Actions variable `PLAY_BILLING_PUBLIC_KEY` (or build with Gradle property `playBillingPublicKey`). The build requires a valid RSA public key of at least 2048 bits if a value is supplied. An empty key yields a free build with checkout disabled and `commerceConfigured: false` in release metadata. A `true` flag proves valid key format only; verify that the key belongs to this exact Console app and complete a Play test purchase before claiming paid readiness.
-6. Build a new higher-version-code signed AAB if 100029 has already been uploaded. Do not re-upload different bytes under a used version code.
+6. Build a new higher-version-code signed AAB if 100031 has already been uploaded. Do not re-upload different bytes under a used version code.
 7. Confirm an appropriate payments profile and the product's country availability in Console. Use a license tester account on the actual Play-installed package to verify the one-time upgrade, Restore, cancellation, pending approval, acknowledgement, reinstall and refund/revocation. Ordinary test-track accounts can still incur real charges; a license tester receives Google's test payment methods.
 
 Official references: [billing setup](https://developer.android.com/google/play/billing/getting-ready), [one-time product model and activation](https://support.google.com/googleplay/android-developer/answer/16430488), [find the licensing key](https://support.google.com/googleplay/android-developer/answer/186113), [purchase testing](https://developer.android.com/google/play/billing/test).

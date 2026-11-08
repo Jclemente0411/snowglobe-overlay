@@ -31,6 +31,8 @@ Active access is observed through a lightweight timer, the activity's foreground
 
 Time enforcement uses device wall time with monotonic elapsed-time and high-water safeguards against ordinary clock rollback. This is an offline preview mechanism, not a server-authoritative licensing service. Clearing app storage or uninstalling removes local redemption history; normal-clock reuse remains bounded by the fixed campaign end. An offline application cannot guarantee immediate revocation, global redemption counts, per-person limits, or resistance to a rooted device with modified code/storage/time. A new campaign currently requires an application update.
 
+For future campaigns, generate a new random code and a new campaign ID. Preserve existing campaign IDs, digests and timing rules while their local records remain supported; replacing a digest or removing a known campaign without an explicit storage migration invalidates its saved record. Append campaigns within the controller's bounded storage limits and add a migration before retiring historical definitions. Never commit plaintext owner or giveaway codes, and never change a campaign's original activation history to extend a trial silently.
+
 ## Paid upgrades and Google Play
 
 The existing optional `holiday_plus_lifetime` upgrade remains a one-time Google Play purchase. Its product, licensing key, price and actual transaction checks are independent of this complimentary feature. See [Holiday Plus setup](HOLIDAY_PLUS_SETUP.md). Passing trial tests is not evidence of a real Google Play payment or product activation.
