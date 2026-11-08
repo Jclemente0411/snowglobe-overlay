@@ -170,7 +170,9 @@ jobs:
           PLAY_STORE_PASSWORD: ${{ secrets.PLAY_UPLOAD_STORE_PASSWORD }}
           PLAY_KEY_ALIAS: ${{ secrets.PLAY_UPLOAD_KEY_ALIAS }}
           PLAY_KEY_PASSWORD: ${{ secrets.PLAY_UPLOAD_KEY_PASSWORD }}
-        run: gradle --no-daemon -PrequirePaidCommerce=${{ inputs.require_paid_commerce || false }} :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata :app:assembleDebugAndroidTest
+        run: gradle --no-daemon -PrequirePaidCommerce=${{ inputs.require_paid_commerce || false }} :app:bundleRelease :app:lintRelease :app:writeReleaseMetadata
+      - name: Build the explicitly registered signed-upgrade probe
+        run: gradle --no-daemon --init-script scripts/upgrade-probe.init.gradle :app:assembleDebugAndroidTest
       - name: Ensure 16 KB APK verifier is available
         run: |
           set -euo pipefail
@@ -220,6 +222,8 @@ jobs:
           unzip -p "$RUNNER_TEMP/release.apks" universal.apk > "$RUNNER_TEMP/universal.apk"
           "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$RUNNER_TEMP/universal.apk" > release/apk-alignment.txt
           mkdir -p upgrade-inputs
+          "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump xmltree app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk --file AndroidManifest.xml > release/upgrade-probe-manifest.txt
+          grep -F 'com.snowglobe.overlay.UpgradeProbeInstrumentation' release/upgrade-probe-manifest.txt
           cp "$RUNNER_TEMP/universal.apk" upgrade-inputs/candidate.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks "$RUNNER_TEMP/upload-key.jks" --ks-key-alias "$PLAY_KEY_ALIAS" --ks-pass env:PLAY_STORE_PASSWORD --key-pass env:PLAY_KEY_PASSWORD --out upgrade-inputs/probe.apk app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose upgrade-inputs/probe.apk > release/upgrade-probe-signature.txt

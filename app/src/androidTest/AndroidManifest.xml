@@ -1,5 +1,0 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- CI-only, re-signed with the upload key on disposable emulators. Not in the app bundle. -->
-    <instrumentation android:name="com.snowglobe.overlay.UpgradeProbeInstrumentation"
-        android:targetPackage="com.snowglobe.overlay" android:functionalTest="true" />
-</manifest>

@@ -1,0 +1,10 @@
+// CI-only registration. AGP generates the instrumentation node from its DSL;
+// adding a second node in src/androidTest/AndroidManifest.xml does not register it.
+// The ordinary full device suite continues to use AndroidJUnitRunner.
+gradle.beforeProject { project ->
+    project.plugins.withId('com.android.application') {
+        project.extensions.getByName('androidComponents').finalizeDsl { dsl ->
+            dsl.defaultConfig.testInstrumentationRunner = 'com.snowglobe.overlay.UpgradeProbeInstrumentation'
+        }
+    }
+}

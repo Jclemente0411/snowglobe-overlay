@@ -25,6 +25,8 @@ for enabled in false true; do
   adb uninstall com.snowglobe.overlay >/dev/null 2>&1 || true
   adb install "$UPGRADE_BASELINE_APK" | tee "$evidence/$enabled-install-baseline.txt"
   adb install "$UPGRADE_PROBE_APK" | tee "$evidence/$enabled-install-probe.txt"
+  adb shell pm list instrumentation > "$evidence/$enabled-registered-instrumentation.txt"
+  grep -F 'com.snowglobe.overlay.test/com.snowglobe.overlay.UpgradeProbeInstrumentation' "$evidence/$enabled-registered-instrumentation.txt"
   adb shell appops set com.snowglobe.overlay SYSTEM_ALERT_WINDOW allow
   probe seed "$enabled"
   adb shell dumpsys package com.snowglobe.overlay > "$evidence/$enabled-package-before.txt"
