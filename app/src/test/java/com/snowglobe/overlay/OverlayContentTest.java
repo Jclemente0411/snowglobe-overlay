@@ -6,8 +6,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.robolectric.RobolectricTestRunner;
 import org.robolectric.RuntimeEnvironment;
+import org.robolectric.annotation.Config;
 import static org.junit.Assert.*;
 @RunWith(RobolectricTestRunner.class)
+@Config(sdk=35, manifest=Config.NONE)
 public class OverlayContentTest {
     private SharedPreferences prefs;
     @Before public void setup(){prefs=RuntimeEnvironment.getApplication().getSharedPreferences("overlay-content-test",Context.MODE_PRIVATE);prefs.edit().clear().commit();}

@@ -113,6 +113,10 @@ public class OverlaySafetyTest {
                     assertEquals("Only one non-touchable visual overlay may exist",1,count);
                 });
             }
+            UiObject2 field=device.wait(Until.findObject(By.clazz("android.widget.EditText")),5000);assertNotNull(field);field.click();
+            device.executeShellCommand("input text snowglobe0223");
+            assertTrue("Typing in another app must remain possible under active snow",device.wait(Until.hasObject(By.textContains("snowglobe0223")),5000));
+            device.pressBack();
             InstrumentationRegistry.getInstrumentation().runOnMainSync(()->EffectsService.pauseNow(context));awaitOverlay(false);
         }
     }
