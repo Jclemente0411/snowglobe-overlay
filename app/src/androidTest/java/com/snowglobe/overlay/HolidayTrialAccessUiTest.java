@@ -125,9 +125,9 @@ public final class HolidayTrialAccessUiTest {
             assertFalse("An access-code attempt must not launch checkout",
                 device.hasObject(By.pkg("com.android.vending")));
             assertEquals(context.getPackageName(),device.getCurrentPackageName());
-            button("Continue with free snow",Direction.DOWN).click();
+            clickButton("Continue with free snow",Direction.DOWN);
             tab("Decor");
-            button("Candy canes",Direction.DOWN).click();
+            clickButton("Candy canes",Direction.DOWN);
             assertTrue("Premium controls must still request access after an invalid code",
                 device.wait(Until.hasObject(By.text("SnowGlobe Holiday Plus")),10000));
             assertFalse(prefs.getBoolean("candy",false));
@@ -147,11 +147,11 @@ public final class HolidayTrialAccessUiTest {
             assertFalse("Complimentary access is never a fabricated purchase",
                 HolidayPlusEntitlement.isOwned(context,BuildConfig.PLAY_BILLING_PUBLIC_KEY));
             assertTrue(device.takeScreenshot(new File(screenshots,"31-holiday-trial-active.png")));
-            button("Restore purchases",Direction.DOWN).click();
+            clickButton("Restore purchases",Direction.DOWN);
             assertEquals("Restore cannot erase or extend a complimentary trial",expires,
                 HolidayTrialAccess.snapshot(context).expiresAtMillis);
             assertTrue(HolidayFeatureAccess.hasAccess(context));
-            button("Return to my winter",Direction.DOWN).click();
+            clickButton("Return to my winter",Direction.DOWN);
             assertTrue(device.wait(Until.gone(By.text("Restore purchases")),5000));
 
             // A real premium scene action exercises Activity.requirePlus and all seven decorations.
@@ -163,13 +163,13 @@ public final class HolidayTrialAccessUiTest {
             assertEquals(7,unlocked.decorations.length);
             assertTrue(unlocked.sparks);
             tab("Decor");
-            button("Candy canes",Direction.DOWN).click();
+            clickButton("Candy canes",Direction.DOWN);
             await("The premium switch must change its stored value",()->!prefs.getBoolean("candy",true));
-            button("Candy canes",Direction.DOWN).click();
+            clickButton("Candy canes",Direction.DOWN);
             await("The premium switch must remain usable",()->prefs.getBoolean("candy",false));
 
             tab("Snow");
-            button("Down",Direction.DOWN).click();
+            clickButton("Down",Direction.DOWN);
             UiObject2 direction=device.wait(Until.findObject(By.text("Down-right")),5000);
             assertNotNull("Direction menu must be unlocked by the code",direction);direction.click();
             await("Premium direction must reach the settings",()->prefs.getInt("particleDirection",0)==1);
@@ -185,7 +185,7 @@ public final class HolidayTrialAccessUiTest {
             assertFalse(HolidayPlusEntitlement.isOwned(context,BuildConfig.PLAY_BILLING_PUBLIC_KEY));
 
             tab("Home");
-            button("4K wallpaper collection",Direction.UP).click();
+            clickButton("4K wallpaper collection",Direction.UP);
             assertTrue(device.wait(Until.hasObject(By.text("Winter wallpapers")),10000));
             UiObject2 save=reveal(By.desc("Save Candlelight Village 4K wallpaper"),
                 "Save Candlelight Village",Direction.DOWN);
@@ -231,7 +231,7 @@ public final class HolidayTrialAccessUiTest {
             assertFalse(HolidayFeatureAccess.hasAccess(context));
             assertFalse(HolidayPlusEntitlement.isOwned(context,BuildConfig.PLAY_BILLING_PUBLIC_KEY));
             tab("Decor");
-            button("Candy canes",Direction.DOWN).click();
+            clickButton("Candy canes",Direction.DOWN);
             assertTrue("An expired trial must route Plus controls back to access options",
                 device.wait(Until.hasObject(By.text("SnowGlobe Holiday Plus")),10000));
             assertFalse("An expired code cannot be reused to extend the same trial",
@@ -241,7 +241,7 @@ public final class HolidayTrialAccessUiTest {
 
     private void openPlus() throws Exception {
         assertTrue(device.wait(Until.hasObject(By.text("Christmas Studio")),15000));
-        button("Explore Holiday Plus",Direction.DOWN).click();
+        clickButton("Explore Holiday Plus",Direction.DOWN);
         assertTrue(device.wait(Until.hasObject(By.text("SnowGlobe Holiday Plus")),10000));
     }
 
@@ -254,7 +254,7 @@ public final class HolidayTrialAccessUiTest {
             .clazz("android.widget.EditText")),5000);
         assertNotNull("The access-code field must expose an editable accessibility role",editable);
         editable.setText(code);
-        button("Activate code",Direction.DOWN).click();
+        clickButton("Activate code",Direction.DOWN);
     }
 
     private void dismissVisibleKeyboard(){
@@ -272,28 +272,52 @@ public final class HolidayTrialAccessUiTest {
 
     private UiObject2 reveal(BySelector target,String label,Direction direction) throws Exception {
         for(int attempt=0;attempt<16;attempt++){
-            UiObject2 found=device.wait(Until.findObject(target),400);
-            if(found!=null&&!found.getVisibleBounds().isEmpty())return found;
-            UiObject2 list=null;int height=0;
-            for(UiObject2 candidate:device.findObjects(By.pkg(context.getPackageName()).scrollable(true))){
-                Rect bounds=candidate.getVisibleBounds();
-                if(bounds.height()>height){list=candidate;height=bounds.height();}
+            try{
+                UiObject2 found=device.wait(Until.findObject(target),400);
+                if(found!=null&&!found.getVisibleBounds().isEmpty())return found;
+                UiObject2 list=null;int height=0;
+                for(UiObject2 candidate:device.findObjects(By.pkg(context.getPackageName()).scrollable(true))){
+                    Rect bounds=candidate.getVisibleBounds();
+                    if(bounds.height()>height){list=candidate;height=bounds.height();}
+                }
+                if(list==null)break;
+                list.setGestureMarginPercentage(.12f);list.scroll(direction,.40f,900);
+            }catch(StaleObjectException changed){
+                // Bounds can change while the IME/Compose transition replaces the node tree.
+                // Reacquire the target and list within the existing bounded discovery loop.
             }
-            if(list==null)break;
-            try{list.setGestureMarginPercentage(.12f);list.scroll(direction,.40f,900);}
-            catch(StaleObjectException changed){ /* Reacquire after Compose updates. */ }
         }
         device.takeScreenshot(new File(screenshots,"FAILED-trial-"+label.replaceAll("[^A-Za-z0-9]+","-")+".png"));
         device.dumpWindowHierarchy(new File(screenshots,"FAILED-trial-hierarchy.xml"));
         fail("Trial control was not reachable: "+label);return null;
     }
 
-    private UiObject2 button(String label,Direction direction) throws Exception {
-        for(UiObject2 node=reveal(By.text(label),label,direction);node!=null;node=node.getParent()){
-            if(node.isScrollable())break;
-            if(node.isClickable())return node;
+    private void clickButton(String label,Direction direction) throws Exception {
+        for(int attempt=0;attempt<3;attempt++){
+            try{
+                UiObject2 button=null;
+                for(UiObject2 node=reveal(By.text(label),label,direction);node!=null;node=node.getParent()){
+                    if(node.isScrollable())break;
+                    if(node.isClickable()){button=node;break;}
+                }
+                assertNotNull("Missing click target for "+label,button);
+                button.click();
+                return;
+            }catch(StaleObjectException changed){
+                // Android 17 replaced Activate code's ancestry immediately after text entry.
+                // Keep lookup, parent traversal and click together; retry only this stale handle.
+                // Assertions and test scenarios are never retried.
+                if(attempt==2){
+                    try{
+                        String name="FAILED-trial-click-"+label.replaceAll("[^A-Za-z0-9]+","-");
+                        device.takeScreenshot(new File(screenshots,name+".png"));
+                        device.dumpWindowHierarchy(new File(screenshots,name+".xml"));
+                    }catch(Exception capture){changed.addSuppressed(capture);}
+                    throw changed;
+                }
+                device.waitForIdle(1000);
+            }
         }
-        fail("Missing click target for "+label);return null;
     }
 
     private UiObject2 revealScene(String name) throws Exception {
