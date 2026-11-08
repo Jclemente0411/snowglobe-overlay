@@ -161,6 +161,9 @@ public class EffectsService extends Service {
         if(!OverlaySafetyPolicy.shouldAttach(enabled,permitted,studio,interactive,locked,wallpaper)){
             detachOverlay();state(desired);if(!enabled||!permitted)stopSelf();return;
         }
+        if(!new SceneSettings(prefs,HolidayFeatureAccess.hasAccess(this)).hasOverlayContent()){
+            detachOverlay();state("no_effects");return;
+        }
         // Window geometry is what Android uses to classify obscured touches.
         // Restricting the overlay to the top band is an opt-in convenience, not a
         // bypass for protected payment controls.

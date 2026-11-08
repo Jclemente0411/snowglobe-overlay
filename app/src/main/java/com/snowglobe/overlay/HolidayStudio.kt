@@ -72,7 +72,7 @@ internal class HolidayActions(
     val setBoolean:(String,Boolean)->Unit,val setNumber:(String,Int)->Unit,val preset:(String)->Unit,
     val undo:()->Unit,val save:(Int,String)->Unit,val load:(Int)->Unit,val delete:(Int)->Unit,
     val systemBars:(Boolean)->Unit,val buyPlus:()->Unit,val restorePlus:()->Unit,
-    val saveWallpaper:(Int)->Unit,val openPlus:()->Unit,val redeemCode:(String)->Unit={})
+    val saveWallpaper:(Int)->Unit,val openPlus:()->Unit,val redeemCode:(String)->Unit={},val wallpaperOnly:()->Unit={})
 
 @Composable internal fun HolidayStudio(prefs:SharedPreferences,scenes:SavedScenesStore,state:HolidayUiState,actions:HolidayActions){
     val context=LocalContext.current
@@ -127,6 +127,11 @@ internal class HolidayActions(
                         when(current){
                             0->{
                                 item{HolidayHero(prefs,state,actions,previewActive=sheet==null)}
+                                item{HolidayCard("Trouble tapping in another app?","Keep the winter scene on Home and Lock without drawing over other apps."){
+                                    OutlinedButton(onClick=actions.wallpaperOnly,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Use wallpaper only")}
+                                    TextButton(onClick=actions.addTile,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text("Add a quick Pause shortcut")}
+                                    Text("Some apps reject touches even through transparent snow. Wallpaper-only pauses over-app effects until you explicitly resume them.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
+                                }}
                                 item{PixelSetupSummary(prefs,state,onDetails={sheet="setup"})}
                                 item{Surface(onClick={sheet="wallpapers"},color=colors.surface,shape=RoundedCornerShape(24.dp),border=BorderStroke(1.dp,colors.outlineVariant)){
                                     Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(16.dp)){
@@ -167,7 +172,7 @@ internal class HolidayActions(
                                     Spacer(Modifier.height(12.dp))
                                     OutlinedButton(onClick={sheet="settings"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Wallpaper & controls")}
                                 }}
-                                item{Text("SnowGlobe ${BuildConfig.VERSION_NAME} · crafted for winter\nDesigned for Pixel. Independent, not affiliated with Google or Samsung.",
+                                item{Text("SnowGlobe ${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}\nDesigned for Pixel. Independent, not affiliated with Google or Samsung.",
                                     style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant,modifier=Modifier.padding(horizontal=6.dp))}
                             }
                             1->{
@@ -256,7 +261,8 @@ internal class HolidayActions(
                         else->{
                             item{OutlinedButton(onClick={sheet="privacy"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Privacy policy")}}
                             item{OutlinedButton(onClick={sheet="setup"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pixel setup guide")}}
-                            item{HolidayCard("Safe taps & quick control","Pause before shopping or protected screens."){
+                            item{HolidayCard("Safe taps & quick control","Wallpaper-only keeps other apps unobscured."){
+                                OutlinedButton(onClick=actions.wallpaperOnly,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Use wallpaper only")}
                                 HolidayToggle(prefs,state,actions,"Top-edge-only effects (safer taps)","edgeOnly",false,
                                     "A smaller overlay leaves most of the screen uncovered. Checkout may still require Pause.")
                                 OutlinedButton(onClick=actions.pauseAndOpenPlay,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Pause & open Google Play")}
@@ -332,7 +338,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
             Text("Current scene: "+(prefs.getString("selectedScene","Custom")?:"Custom"),style=MaterialTheme.typography.labelSmall,color=c.onSurfaceVariant)
             Spacer(Modifier.height(14.dp));HolidayPreview(prefs,previewActive,220)
             Spacer(Modifier.height(12.dp))
-            Text(when{!state.permission->"Overlay permission needed";service=="error"->"Effects need attention";active->"Over-app effects on";else->"Paused · preview only"},
+            Text(when{!state.permission->"Overlay permission needed";service=="error"->"Effects need attention";service=="no_effects"->"No visible effects · other apps clear";active->"Over-app effects on";else->"Paused · preview only"},
                 style=MaterialTheme.typography.labelLarge,color=if(service=="error")c.error else c.primary)
             Spacer(Modifier.height(10.dp))
             Button(onClick={actions.enable(!active||!state.permission)},modifier=Modifier.fillMaxWidth().heightIn(min=56.dp),shape=RoundedCornerShape(18.dp)){
@@ -450,6 +456,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
             "Exclusive 4K artwork" to "Candlelight Village and Aurora Night, saved at full resolution."
         ).forEach{(title,detail)->Column{Text(title,fontWeight=FontWeight.SemiBold);Text(detail,style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)}}
         Text("One-time purchase. No subscription. Restore with the Google Play account that owns your upgrade.",style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
+        Text("Some apps protect taps and require over-app effects to be paused. Live wallpaper keeps other apps clear.",style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
         if(!plus.configured&&!plus.owned)Text("Google Play purchases are not available in this release yet. An access code can still activate a free trial of every Holiday Plus feature.",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
         if(plus.pending)Text("Your payment is pending. Plus unlocks after Google Play confirms it; you do not need to buy again.",color=c.primary)
         if(plus.configured||plus.owned)Text(plus.message,style=MaterialTheme.typography.bodyMedium,color=if(plus.owned)c.primary else c.onSurfaceVariant)

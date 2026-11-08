@@ -5,6 +5,7 @@ plugins {
 }
 def playBillingKey = providers.gradleProperty('playBillingPublicKey')
     .orElse(providers.environmentVariable('PLAY_BILLING_PUBLIC_KEY')).orElse('').get().replaceAll('\\s', '')
+def requirePaidCommerce = providers.gradleProperty('requirePaidCommerce').orElse('false').get().toBoolean()
 def commerceConfigured = false
 if (!playBillingKey.isEmpty()) {
     try {
@@ -17,6 +18,9 @@ if (!playBillingKey.isEmpty()) {
         throw new GradleException('PLAY_BILLING_PUBLIC_KEY must be the genuine RSA licensing public key from Play Console.', invalidKey)
     }
 }
+if (requirePaidCommerce && !commerceConfigured) {
+    throw new GradleException("Paid release blocked: configure this app's genuine PLAY_BILLING_PUBLIC_KEY before building with -PrequirePaidCommerce=true.")
+}
 android {
     namespace 'com.snowglobe.overlay'
     compileSdk 36
@@ -24,8 +28,8 @@ android {
         applicationId 'com.snowglobe.overlay'
         minSdk 26
         targetSdk 36
-        versionCode 100031
-        versionName '0.22.2'
+        versionCode 100033
+        versionName '0.22.3'
         buildConfigField 'String', 'PLAY_BILLING_PUBLIC_KEY', groovy.json.JsonOutput.toJson(playBillingKey)
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
