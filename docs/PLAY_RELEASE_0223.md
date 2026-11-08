@@ -52,3 +52,30 @@ The first 100032 candidate passed the complete debug device suites but failed th
 Build 100033 avoids terminal newlines in newly encoded scenes and accepts trailing blank lines from already saved scenes. Interior blank lines, unknown fields, duplicate fields, invalid ranges and unsupported schemas remain rejected. The signed update probe preserves the exact baseline scene bytes and validates its visual contents after replacement, so this compatibility fix is checked on persisted data rather than only an in-memory round trip.
 
 The upgrade instrumentation is explicitly registered through AGP's final DSL hook; the full device suite continues to use AndroidJUnitRunner. The temporary immutable-candidate diagnostic workflow is archived, retaining the single gated signing workflow.
+
+
+## Observed build 100033 handoff
+
+Verified November 8, 2026, from source `ab6bae86602ddcf585d1cfb74d963fbc3f248c18`.
+[Release run 42506126322](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42506126322) completed successfully, including both full quality jobs, the signing job and both signed-upgrade jobs.
+
+| Gate | Android 15 / API 35 | Android 17 / API 37 |
+| --- | --- | --- |
+| JVM regressions and lint | Passed | Passed |
+| Full device suite | 44 passed, no failures or skips | 44 passed, no failures or skips |
+| Required screenshots | 12 verified | 12 verified |
+| 100 cross-app taps, typing and single-window checks | Passed | Passed |
+| Empty-window removal and wallpaper-only recovery | Passed | Passed |
+| Signed 100031 → 100033 replacement, paused state | Passed | Passed |
+| Signed 100031 → 100033 replacement, enabled state | Passed | Passed |
+| Persisted visual settings, saved scene bytes/content and overlay permission | Preserved | Preserved |
+
+The device suite also includes the 1,000-frame rendering stress case. These are emulator fixture results, not a performance guarantee for a physical Pixel or proof that every third-party app accepts overlays. Some protected controls still require Pause or wallpaper-only mode.
+
+The signed bundle passed package/version metadata, existing upload-certificate, archive, bundle and 16 KB alignment checks. Actual signing-job metadata records **`commerceConfigured: false` / `commerce-not-configured`** for `holiday_plus_lifetime`. Paid checkout remains disabled; complimentary access remains independent.
+
+Final artifact: **`SnowGlobe-0223-signed-AAB-28-1`**, ID **13628382065**.
+[Download the verified artifact ZIP](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42506126322/artifacts/13628382065), then extract **`SnowGlobe-0.22.3-build100033.aab`**.
+The ZIP is **8,112,527 bytes**, SHA-256 **`609c73dfd1e24bb4a2fe9c31d63380ca9cca2fccb23671a3606a80c921816477`**. This digest covers the enclosing ZIP, not the AAB; the per-AAB digest is in its `SHA256SUMS.txt`. The final archive was not separately downloaded and byte-verified in the chat workspace because that execution environment became unavailable. The CI checks and upload digest above were observed directly from GitHub.
+
+The earlier 100032 artifact is superseded. No Play upload or rollout was performed. The highest Console version code, actual Play-delivered update on the owner's phone, payments profile, product activation, genuine licensing key, and real purchase/Restore/reinstall/refund behavior remain unverified. Complete the account-side setup and license-tester scenarios before paid production approval. A changed billing-enabled bundle must use a higher code if 100033 has already been uploaded.
