@@ -144,7 +144,11 @@ public class OverlaySafetyTest {
             androidx.test.uiautomator.UiScrollable list=new androidx.test.uiautomator.UiScrollable(new androidx.test.uiautomator.UiSelector().scrollable(true));
             list.scrollTextIntoView("Use wallpaper only");
             UiObject2 recovery=device.wait(Until.findObject(By.text("Use wallpaper only")),5000);assertNotNull(recovery);recovery.click();
-            assertFalse(context.getSharedPreferences("snowglobe",0).getBoolean("effectsEnabled",true));
+            long pausedDeadline=SystemClock.uptimeMillis()+5000;
+            while(context.getSharedPreferences("snowglobe",0).getBoolean("effectsEnabled",true)
+                &&SystemClock.uptimeMillis()<pausedDeadline)SystemClock.sleep(50);
+            assertFalse("The recovery action must persist Pause before returning from the picker",
+                context.getSharedPreferences("snowglobe",0).getBoolean("effectsEnabled",true));
             awaitOverlay(false);device.pressBack();device.pressHome();awaitOverlay(false);
         }
         try(ActivityScenario<StudioActivity> again=ActivityScenario.launch(StudioActivity.class)){

@@ -456,6 +456,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
             "Exclusive 4K artwork" to "Candlelight Village and Aurora Night, saved at full resolution."
         ).forEach{(title,detail)->Column{Text(title,fontWeight=FontWeight.SemiBold);Text(detail,style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)}}
         Text("One-time purchase. No subscription. Restore with the Google Play account that owns your upgrade.",style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
+        Text("Some apps protect taps and require over-app effects to be paused. Live wallpaper keeps other apps clear.",style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
         if(!plus.configured&&!plus.owned)Text("Google Play purchases are not available in this release yet. An access code can still activate a free trial of every Holiday Plus feature.",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
         if(plus.pending)Text("Your payment is pending. Plus unlocks after Google Play confirms it; you do not need to buy again.",color=c.primary)
         if(plus.configured||plus.owned)Text(plus.message,style=MaterialTheme.typography.bodyMedium,color=if(plus.owned)c.primary else c.onSurfaceVariant)
