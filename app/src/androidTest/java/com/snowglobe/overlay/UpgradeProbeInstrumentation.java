@@ -15,6 +15,7 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
     @Override public void onCreate(Bundle args){super.onCreate(args);arguments=args;start();}
     @Override public void onStart(){
         Bundle result=new Bundle();
+        String fixtureScene="";
         try{
             Context context=getTargetContext();
             SharedPreferences prefs=context.getSharedPreferences("snowglobe",Context.MODE_PRIVATE);
@@ -31,6 +32,10 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                 SavedScenesStore scenes=new SavedScenesStore(context);scenes.save(2,"Upgrade continuity");
                 // Force the asynchronous scene write to disk before ending this process.
                 require(context.getSharedPreferences("snowglobe_scenes",0).edit().putBoolean("_upgradeProbe",true).commit(),"Scene did not persist");
+                fixtureScene=context.getSharedPreferences("snowglobe_scenes",0).getString("scene2","");
+                // Check the baseline can decode its own fixture before attributing a failure to upgrade.
+                require(Integer.valueOf(73).equals(scenes.read(2).values().get("density")),"Baseline scene did not round-trip");
+                require(prefs.edit().putString("_upgradeSceneEncoded",fixtureScene).commit(),"Could not persist fixture comparison");
             }else if("verify".equals(phase)){
                 require(version==100032,"New bundle was not installed");
                 require("0222-to-0223".equals(prefs.getString("_upgradeProbe","")),"Update lost app data");
@@ -39,6 +44,8 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
                 require(prefs.getInt("qualityMode",-1)==0&&!prefs.getBoolean("edgeOnly",true),"Update changed quality or coverage");
                 SavedScenesStore scenes=new SavedScenesStore(context);
                 require(scenes.exists(2)&&"Upgrade continuity".equals(scenes.name(2)),"Update lost saved scene");
+                fixtureScene=context.getSharedPreferences("snowglobe_scenes",0).getString("scene2","");
+                require(fixtureScene.equals(prefs.getString("_upgradeSceneEncoded","")),"Update changed encoded scene bytes");
                 require(Integer.valueOf(73).equals(scenes.read(2).values().get("density")),"Saved scene contents changed");
                 require(Settings.canDrawOverlays(context),"Update lost overlay permission");
             }else throw new AssertionError("Unknown probe phase");
@@ -58,6 +65,9 @@ public final class UpgradeProbeInstrumentation extends Instrumentation {
             result.putString("upgrade_result","PASS "+phase+" enabled="+enabled+" version="+version);
             finish(Activity.RESULT_OK,result);
         }catch(Throwable error){
+            // Fresh synthetic fixture only: no receipts, access codes or real user scene data.
+            result.putString("fixture_scene_base64",java.util.Base64.getEncoder().encodeToString(fixtureScene.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            result.putString("failure_location",error.getStackTrace().length==0?"unknown":error.getStackTrace()[0].toString());
             result.putString("upgrade_result","FAIL "+error.getClass().getSimpleName()+": "+error.getMessage());
             finish(Activity.RESULT_CANCELED,result);
         }
