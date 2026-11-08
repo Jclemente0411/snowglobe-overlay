@@ -180,7 +180,7 @@ public class HolidayTrialAccessTest {
 
     @Test public void privateRecordSurvivesProcessRestartAndContainsNoRawCode() throws Exception {
         long expiry = controller.redeem(SHARE).snapshot.expiresAtMillis;
-        String saved = Files.readString(file.toPath());
+        String saved = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
         assertFalse(saved.contains(SHARE));
         assertFalse(saved.contains("TESTONLYACCESS"));
         assertTrue(file.getParentFile().equals(context.getNoBackupFilesDir()));
@@ -199,7 +199,7 @@ public class HolidayTrialAccessTest {
 
     @Test public void corruptionCannotBecomeAnUnlockOrResetAnExpiredGrant() throws Exception {
         controller.redeem(SHARE);
-        String original = Files.readString(file.toPath());
+        String original = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
         JSONObject wrongDigest = new JSONObject(original);
         wrongDigest.getJSONArray("redemptions").getJSONObject(0).put("digest", "0".repeat(64));
         JSONObject coercedTimestamp = new JSONObject(original);
@@ -213,7 +213,7 @@ public class HolidayTrialAccessTest {
                 wrongDigest.toString(), coercedTimestamp.toString(), duplicate.toString(),
                 unknown.toString(), impossibleClock.toString()}) {
             controller.close();
-            Files.writeString(file.toPath(), invalid);
+            Files.write(file.toPath(), invalid.getBytes(StandardCharsets.UTF_8));
             controller = new HolidayTrialAccess.Controller(context, campaigns, clock);
             assertFalse(controller.snapshot().active);
             assertFalse(controller.redeem(SHARE).success);
@@ -222,7 +222,7 @@ public class HolidayTrialAccessTest {
 
     @Test public void settingsSnapshotsUseMemoryRatherThanRepeatedDiskReads() throws Exception {
         controller.redeem(SHARE);
-        Files.writeString(file.toPath(), "corrupt after initial load");
+        Files.write(file.toPath(), "corrupt after initial load".getBytes(StandardCharsets.UTF_8));
         assertTrue(controller.snapshot().active);
         restart();
         assertFalse(controller.snapshot().active);
@@ -315,7 +315,7 @@ public class HolidayTrialAccessTest {
     }
 
     private JSONObject readJson() throws Exception {
-        return new JSONObject(Files.readString(file.toPath()));
+        return new JSONObject(new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8));
     }
 
     private static String hash(String value) {

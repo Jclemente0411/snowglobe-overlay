@@ -6,6 +6,12 @@ Prepared November 7, 2026. This is the existing app's one-time upgrade, not a se
 
 The final 0.22.0 / 100029 signed build from [run 42393453546](https://github.com/Jclemente0411/snowglobe-overlay/actions/runs/42393453546), source `914164b561dc761f501e59df026b4490c738ad2c`, passed the technical release gates. Its completed log explicitly records **`commerceConfigured: false` / `commerce-not-configured`**. The free app is available in that AAB; the $2.99 checkout remains disabled. Complete the configuration and real-transaction steps below, then build a higher version code if 100029 has already been used.
 
+## Complimentary access in 0.22.2
+
+The **0.22.2 / 100031** patch adds independent no-charge access codes. A valid trial unlocks every Plus feature even when this Play checkout configuration is incomplete. Owner testing lasts up to 90 days and the shared preview lasts up to 7 days, both capped by the campaign end. Codes do not produce purchase receipts, require payment, or renew automatically. See [complimentary access operation](COMPLIMENTARY_ACCESS.md) and the [0.22.2 release handoff](PLAY_RELEASE_0222.md).
+
+The owner reports that the 0.22.1 Play build now installs and runs. The access-code patch does not establish that the paid product is activated or that a real billing transaction passed. `commerceConfigured` remains an independent release metadata field.
+
 ## Exact product
 
 | Field | Value |
