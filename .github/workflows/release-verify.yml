@@ -67,6 +67,14 @@ jobs:
           cache-read-only: false
       - name: Release verifier regressions
         run: python3 -B -m unittest discover -s scripts/tests -v
+      - name: Confirm paid-build gate rejects a missing licensing key
+        run: |
+          mkdir -p app/build/reports
+          if gradle --no-daemon -PplayBillingPublicKey= -PrequirePaidCommerce=true help > app/build/reports/paid-gate-negative.txt 2>&1; then
+            echo '::error::Paid-build gate accepted an empty key'
+            exit 1
+          fi
+          grep -F 'Paid release blocked:' app/build/reports/paid-gate-negative.txt
       - name: Install Android tools that correctly parse dotted API levels
         run: bash scripts/install_android_cmdline_tools.sh
       - name: JVM regressions, lint and test compilation
@@ -183,6 +191,7 @@ jobs:
           jarsigner -J-Duser.language=en -verify -strict -keystore "$RUNNER_TEMP/upload-key.jks" -storepass:env PLAY_STORE_PASSWORD "$AAB" "$PLAY_KEY_ALIAS" > release/signature-check.txt
           grep -q 'jar verified' release/signature-check.txt
           keytool -J-Duser.language=en -printcert -jarfile "$AAB" > release/upload-certificate.txt
+          grep -F 'SHA256: 73:45:EE:F8:97:0F:7F:8D:E6:20:BB:F7:C0:4B:28:03:0D:F9:C2:F7:A1:D6:8B:68:E5:E0:72:C1:04:8F:48:A4' release/upload-certificate.txt
           curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
           java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle="$AAB" > release/bundle-validation.txt
           java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" --module=base > release/AndroidManifest.xml
@@ -273,6 +282,8 @@ jobs:
           unzip -j "$RUNNER_TEMP/baseline.zip" 'SnowGlobe-0.22.2-build100031.aab' -d "$RUNNER_TEMP"
           printf '%s  %s\n' bab3bc1f2f20d86f29e8b04c2eec0e548aab120c5e65a9c27ea5e1fdb0797b24 "$RUNNER_TEMP/SnowGlobe-0.22.2-build100031.aab" | sha256sum -c - > upgrade-evidence/baseline-checksum.txt
           curl --fail --location --silent --show-error https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar -o "$RUNNER_TEMP/bundletool.jar"
+          keytool -J-Duser.language=en -printcert -jarfile "$RUNNER_TEMP/SnowGlobe-0.22.2-build100031.aab" > upgrade-evidence/baseline-certificate.txt
+          grep -F 'SHA256: 73:45:EE:F8:97:0F:7F:8D:E6:20:BB:F7:C0:4B:28:03:0D:F9:C2:F7:A1:D6:8B:68:E5:E0:72:C1:04:8F:48:A4' upgrade-evidence/baseline-certificate.txt
           umask 077
           trap 'rm -f "$RUNNER_TEMP/upgrade-key.jks" "$RUNNER_TEMP/store-pass.txt" "$RUNNER_TEMP/key-pass.txt"' EXIT
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/upgrade-key.jks"
