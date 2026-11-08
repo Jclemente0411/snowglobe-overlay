@@ -21,6 +21,7 @@ REQUIRED_IMAGES = (
     "06-holiday-plus.png", "07-wallpaper-collection.png",
     "27-full-height-snow.png", "28-snow-landscape.png",
     "29-snow-with-keyboard.png", "30-snow-after-keyboard.png",
+    "31-holiday-trial-active.png",
 )
 
 

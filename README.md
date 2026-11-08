@@ -4,11 +4,11 @@ SnowGlobe brings layered snowfall, Christmas lights and original winter artwork 
 
 ## Current release scope
 
-**0.22.1 / 100030** is a fresh upload build of 0.22.0, retaining the effects-focused application and custom keyboard removal. It changes only the release version identity; the reported physical-device Play installation failure is not yet confirmed fixed. Both Android 15/17 verification jobs and existing-key signing passed. See the [0.22.1 file and upload handoff](docs/PLAY_RELEASE_0221.md) and the [underlying application audit](docs/RELEASE_READINESS_0220.md). Minimum SDK 26; compile and target SDK 36.
+**0.22.2 / 100031** adds complimentary access codes for full-feature trials, retaining the effects-focused application and custom keyboard removal. The owner reports that the previous **0.22.1 / 100030** Play build now installs, opens and runs; the earlier installer root cause was not established. See the [0.22.2 release handoff](docs/PLAY_RELEASE_0222.md), [access-code operation](docs/COMPLIMENTARY_ACCESS.md), and [underlying application audit](docs/RELEASE_READINESS_0220.md). Minimum SDK 26; compile and target SDK 36.
 
 Free features include full-height layered snow, snow speed/size/density/visibility and shape controls, lights and colors, the Christmas Eve and Arctic Night scene recipes, live wallpaper and two original 2160 × 3840 wallpapers. **SnowGlobe Holiday Plus** is the agreed one-time USD 2.99 upgrade inside this same app; there is no separate paid package or subscription.
 
-Plus adds falling decorations, alternate directions and rotation, floating fairy lights, three additional scene recipes, and two exclusive 4K wallpapers. Entitlements require a valid signed Google Play receipt. A copied preference or saved scene cannot unlock paid features. Missing billing verification configuration disables checkout while preserving the free app. An implemented purchase screen does not establish that the Console product is active or that a real test purchase passed. See [Holiday Plus setup](docs/HOLIDAY_PLUS_SETUP.md).
+Plus adds falling decorations, alternate directions and rotation, floating fairy lights, three additional scene recipes, and two exclusive 4K wallpapers. Access comes from either a valid signed Google Play receipt or a valid complimentary trial code. The trial is separate from permanent ownership, carries no charge, and does not renew automatically. A copied visual preference or saved scene cannot grant access. Missing billing verification configuration disables checkout while preserving both the free app and valid complimentary access. An implemented purchase screen does not establish that the Console product is active or that a real test purchase passed. See [Holiday Plus setup](docs/HOLIDAY_PLUS_SETUP.md).
 
 ## Build and verification
 
@@ -34,4 +34,4 @@ SnowGlobe no longer appears in the keyboard picker. Android continues to manage 
 
 ## Privacy
 
-No Internet permission, advertising, analytics, publisher account or app-operated server. Google Play Billing communicates through the installed Play service. Signed purchase proof stays in private backup-excluded storage; settings and scenes remain local. Read the [privacy policy](docs/PRIVACY.md), which is also available in the app.
+No Internet permission, advertising, analytics, publisher account or app-operated server. Google Play Billing communicates through the installed Play service. Signed purchase proof and complimentary trial records stay in separate private backup-excluded files; settings and scenes remain local. Read the [privacy policy](docs/PRIVACY.md), which is also available in the app.

@@ -23,6 +23,8 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,22 +36,34 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import java.text.DateFormat
+import java.util.Date
 
 internal data class PlusUiState(val owned:Boolean=false,val pending:Boolean=false,val busy:Boolean=false,
-    val canBuy:Boolean=false,val configured:Boolean=false,val price:String="",val message:String="Checking Holiday Plus…")
+    val canBuy:Boolean=false,val configured:Boolean=false,val price:String="",val message:String="Checking Holiday Plus…",
+    val trialActive:Boolean=false,val trialExpiresAtMillis:Long=0L,val trialMessage:String="",
+    val codeMessage:String="",val codeError:Boolean=false){
+    val hasAccess:Boolean get()=owned||trialActive
+}
 internal data class HolidayUiState(val revision:Int,val permission:Boolean,val lockApplied:Boolean,
     val lockCheckAvailable:Boolean,val error:String?,val message:String?,val canUndo:Boolean,
     val plus:PlusUiState=PlusUiState(),val plusRequest:Int=0,val wallpaperBusy:Boolean=false)
@@ -58,7 +72,7 @@ internal class HolidayActions(
     val setBoolean:(String,Boolean)->Unit,val setNumber:(String,Int)->Unit,val preset:(String)->Unit,
     val undo:()->Unit,val save:(Int,String)->Unit,val load:(Int)->Unit,val delete:(Int)->Unit,
     val systemBars:(Boolean)->Unit,val buyPlus:()->Unit,val restorePlus:()->Unit,
-    val saveWallpaper:(Int)->Unit,val openPlus:()->Unit)
+    val saveWallpaper:(Int)->Unit,val openPlus:()->Unit,val redeemCode:(String)->Unit={})
 
 @Composable internal fun HolidayStudio(prefs:SharedPreferences,scenes:SavedScenesStore,state:HolidayUiState,actions:HolidayActions){
     val context=LocalContext.current
@@ -200,7 +214,7 @@ internal class HolidayActions(
                             }
                             3->{
                                 item{HolidayPreview(prefs,sheet==null,150)}
-                                if(!state.plus.owned)item{HolidayPlusCard(state.plus){sheet="plus"}}
+                                if(!state.plus.hasAccess)item{HolidayPlusCard(state.plus){sheet="plus"}}
                                 item{HolidayCard("Holiday details","Holiday Plus adds the little things that make it feel like Christmas."){
                                     listOf("Candy canes" to "candy","Presents" to "gifts","Christmas trees" to "trees","Snowmen" to "snowmen","Glass bulbs" to "bulbs","Golden stars" to "stars","Confetti" to "confetti").forEach{(title,key)->HolidayToggle(prefs,state,actions,title,key,false)}
                                 }}
@@ -264,7 +278,7 @@ internal class HolidayActions(
                                 HolidayChoice(prefs,state,actions,"Animation quality","qualityMode",listOf("Eco - up to 30 fps","Balanced - up to 60 fps","Smooth - up to 120 fps","Auto - adapts to your screen"),3)
                                 Text("Auto is recommended. It selects a conservative 30 or 60 fps target from your display; Battery Saver and heat lower the limit further. Smooth is an upper limit, not a guarantee.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)
                             }}
-                            item{OutlinedButton(onClick={sheet="plus"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text(if(state.plus.owned)"Holiday Plus · unlocked"else "Holiday Plus & restore purchases")}}
+                            item{OutlinedButton(onClick={sheet="plus"},modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text(when{state.plus.owned->"Holiday Plus · unlocked";state.plus.trialActive->"Holiday Plus · trial active";else->"Holiday Plus & access codes"})}}
                             item{Text("Free snow, lights and starter wallpapers. Holiday Plus is a one-time upgrade, with no subscription.",style=MaterialTheme.typography.bodySmall,color=colors.onSurfaceVariant)}
                         }
                     }
@@ -366,7 +380,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
                         Spacer(Modifier.height(3.dp))
                         Text(recipe.description,style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant,minLines=2)
                         Spacer(Modifier.height(10.dp))
-                        Text(if(HolidayAccess.plusScene(recipe.name)&&!state.plus.owned)"Holiday Plus"else if(selected)"Selected ✓"else "Apply scene",style=MaterialTheme.typography.labelMedium,color=c.primary)
+                        Text(if(HolidayAccess.plusScene(recipe.name)&&!state.plus.hasAccess)"Holiday Plus"else if(selected)"Selected ✓"else "Apply scene",style=MaterialTheme.typography.labelMedium,color=c.primary)
                     }
                 }
             }
@@ -404,10 +418,10 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
                 Icon(painterResource(R.drawable.ic_holiday_plus),null,Modifier.size(26.dp),tint=c.onPrimaryContainer)
                 Text("Holiday Plus",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.SemiBold,color=c.onPrimaryContainer)
             }
-            Text(if(plus.owned)"Your extra holiday effects and exclusive wallpapers are unlocked."else "Presents, candy canes, playful motion and exclusive winter wallpapers.",color=c.onPrimaryContainer,style=MaterialTheme.typography.bodyMedium)
-            Text("One-time upgrade · no subscription",color=c.onPrimaryContainer,style=MaterialTheme.typography.labelMedium)
+            Text(when{plus.owned->"Your extra holiday effects and exclusive wallpapers are unlocked.";plus.trialActive->"Every Holiday Plus feature is yours to try until ${trialExpiry(plus.trialExpiresAtMillis)}.";else->"Presents, candy canes, playful motion and exclusive winter wallpapers."},color=c.onPrimaryContainer,style=MaterialTheme.typography.bodyMedium)
+            Text(if(plus.trialActive&&!plus.owned)"Free trial · no payment or automatic renewal"else "One-time upgrade · no subscription",color=c.onPrimaryContainer,style=MaterialTheme.typography.labelMedium)
             OutlinedButton(onClick=onOpen,modifier=Modifier.fillMaxWidth().heightIn(min=50.dp)){
-                Text(if(plus.owned)"Manage Holiday Plus"else "Explore Holiday Plus")
+                Text(if(plus.hasAccess)"Manage Holiday Plus"else "Explore Holiday Plus")
             }
         }
     }
@@ -417,7 +431,18 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
     val c=MaterialTheme.colorScheme
     Column(verticalArrangement=Arrangement.spacedBy(18.dp)){
         HolidayArtwork(4,Modifier.fillMaxWidth().height(170.dp).clip(RoundedCornerShape(24.dp)))
-        Text(if(plus.owned)"Your winter, with all the extras."else "A little more Christmas.",fontFamily=FontFamily.Serif,fontSize=28.sp,lineHeight=34.sp)
+        Text(if(plus.hasAccess)"Your winter, with all the extras."else "A little more Christmas.",fontFamily=FontFamily.Serif,fontSize=28.sp,lineHeight=34.sp)
+        if(plus.trialActive&&!plus.owned){
+            Surface(color=c.primaryContainer,shape=RoundedCornerShape(20.dp)){
+                Column(Modifier.fillMaxWidth().padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+                    Text("Holiday Plus trial active",fontWeight=FontWeight.SemiBold,color=c.onPrimaryContainer,
+                        modifier=Modifier.semantics{heading();liveRegion=LiveRegionMode.Polite})
+                    Text("Full access until ${trialExpiry(plus.trialExpiresAtMillis)}.",color=c.onPrimaryContainer)
+                    Text("No payment or automatic renewal. Your saved scenes remain when the trial ends.",style=MaterialTheme.typography.bodySmall,color=c.onPrimaryContainer)
+                }
+            }
+        }
+        if(!plus.owned)HolidayAccessCodeCard(plus,actions)
         Text("Keep free snowfall, lights, colors and two 4K wallpapers. Holiday Plus adds:",style=MaterialTheme.typography.bodyMedium)
         listOf(
             "Festive decorations" to "Presents, candy canes, snowmen, trees, stars, glass bulbs and confetti.",
@@ -425,21 +450,54 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
             "Exclusive 4K artwork" to "Candlelight Village and Aurora Night, saved at full resolution."
         ).forEach{(title,detail)->Column{Text(title,fontWeight=FontWeight.SemiBold);Text(detail,style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)}}
         Text("One-time purchase. No subscription. Restore with the Google Play account that owns your upgrade.",style=MaterialTheme.typography.bodySmall,color=c.onSurfaceVariant)
-        if(!plus.configured&&!plus.owned)Text("Holiday Plus is not available in this release yet. Free snow, lights and starter wallpapers are ready to use.",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
+        if(!plus.configured&&!plus.owned)Text("Google Play purchases are not available in this release yet. An access code can still activate a free trial of every Holiday Plus feature.",style=MaterialTheme.typography.bodyMedium,color=c.onSurfaceVariant)
         if(plus.pending)Text("Your payment is pending. Plus unlocks after Google Play confirms it; you do not need to buy again.",color=c.primary)
-        Text(plus.message,style=MaterialTheme.typography.bodyMedium,color=if(plus.owned)c.primary else c.onSurfaceVariant)
+        if(plus.configured||plus.owned)Text(plus.message,style=MaterialTheme.typography.bodyMedium,color=if(plus.owned)c.primary else c.onSurfaceVariant)
         Button(onClick=actions.buyPlus,enabled=plus.canBuy&&!plus.busy&&!plus.owned,
             modifier=Modifier.fillMaxWidth().heightIn(min=56.dp)){
             Text(when{plus.owned->"Holiday Plus unlocked";plus.pending->"Payment pending";plus.busy->"Checking Google Play…";plus.canBuy->"Unlock once · ${plus.price}";else->"Available through Google Play"},fontWeight=FontWeight.Bold)
         }
         OutlinedButton(onClick=actions.restorePlus,enabled=!plus.busy,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){Text("Restore purchases")}
-        TextButton(onClick=onContinue,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(if(plus.owned)"Return to my winter"else "Continue with free snow")}
+        TextButton(onClick=onContinue,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(if(plus.hasAccess)"Return to my winter"else "Continue with free snow")}
+    }
+}
+
+private fun trialExpiry(expiresAtMillis:Long):String=
+    DateFormat.getDateTimeInstance(DateFormat.MEDIUM,DateFormat.SHORT).format(Date(expiresAtMillis))
+
+@Composable private fun HolidayAccessCodeCard(plus:PlusUiState,actions:HolidayActions){
+    var code by rememberSaveable{mutableStateOf("")}
+    val keyboard=LocalSoftwareKeyboardController.current
+    val codeTooLong=code.length>96
+    val canActivate=code.isNotBlank()&&!codeTooLong
+    val activate={if(canActivate)actions.redeemCode(code)}
+    LaunchedEffect(plus.codeMessage,plus.codeError){
+        if(plus.codeMessage.isNotBlank()&&!plus.codeError){code="";keyboard?.hide()}
+    }
+    HolidayCard("Have an access code?","Enter a code from SnowGlobe to try every Plus feature for free. No payment or automatic renewal."){
+        Text("Shared codes unlock up to 7 days; owner test passes unlock up to 90 days. All passes end by March 1, 2027 at 00:00 UTC.",
+            style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(value=code,onValueChange={code=it},label={Text("Access code")},singleLine=true,
+            isError=codeTooLong||plus.codeError,modifier=Modifier.fillMaxWidth().semantics{contentDescription="Access code"},
+            supportingText={if(codeTooLong)Text("This code is too long. Paste only the access code (up to 96 characters).")},
+            keyboardOptions=KeyboardOptions(capitalization=KeyboardCapitalization.Characters,
+                autoCorrectEnabled=false,keyboardType=KeyboardType.Ascii,imeAction=ImeAction.Done),
+            keyboardActions=KeyboardActions(onDone={activate()}))
+        Spacer(Modifier.height(10.dp))
+        Button(onClick=activate,enabled=canActivate,modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)){
+            Text("Activate code",fontWeight=FontWeight.SemiBold)
+        }
+        val status=plus.codeMessage.ifBlank{if(plus.trialActive)""else plus.trialMessage}
+        if(status.isNotBlank())Text(status,style=MaterialTheme.typography.bodyMedium,
+            color=if(plus.codeError)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            modifier=Modifier.padding(top=10.dp).semantics{liveRegion=LiveRegionMode.Polite})
     }
 }
 
 @Composable private fun WallpaperGalleryCard(design:Int,state:HolidayUiState,actions:HolidayActions){
     val bitmap=remember(design){WallpaperArt.render(design,360,640).asImageBitmap()}
-    val locked=HolidayAccess.plusWallpaper(design)&&!state.plus.owned
+    val locked=HolidayAccess.plusWallpaper(design)&&!state.plus.hasAccess
     HolidayCard(WallpaperArt.NAMES[design],if(HolidayAccess.plusWallpaper(design))"Holiday Plus · 4K original"else "Included free · 4K original"){
         Image(bitmap,WallpaperArt.NAMES[design]+" winter wallpaper",Modifier.fillMaxWidth().height(300.dp).clip(RoundedCornerShape(20.dp)),contentScale=ContentScale.Crop)
         Spacer(Modifier.height(12.dp))
@@ -460,8 +518,8 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
     }
 }
 @Composable private fun HolidayToggle(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions,title:String,key:String,default:Boolean,detail:String?=null){
-    val locked=HolidayAccess.plusSwitch(key)&&!state.plus.owned
-    val checked=remember(key,state.revision,state.plus.owned){!locked&&prefs.getBoolean(key,default)}
+    val locked=HolidayAccess.plusSwitch(key)&&!state.plus.hasAccess
+    val checked=remember(key,state.revision,state.plus.hasAccess){!locked&&prefs.getBoolean(key,default)}
     Row(Modifier.fillMaxWidth().heightIn(min=60.dp).toggleable(value=checked,role=Role.Switch,onValueChange={if(locked)actions.openPlus()else actions.setBoolean(key,it)}).padding(vertical=8.dp),
         verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(14.dp)){
         Column(Modifier.weight(1f)){Text(title,style=MaterialTheme.typography.bodyLarge);if(locked)Text("Holiday Plus",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary);if(detail!=null)Text(detail,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}
@@ -469,7 +527,7 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
     }
 }
 @Composable private fun HolidaySlider(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions,title:String,key:String,default:Int){
-    val locked=HolidayAccess.plusNumber(key)&&!state.plus.owned
+    val locked=HolidayAccess.plusNumber(key)&&!state.plus.hasAccess
     val saved=remember(key,state.revision){prefs.getInt(key,default).coerceIn(0,100)}
     var value by remember(key){mutableFloatStateOf(saved.toFloat())};var dragging by remember{mutableStateOf(false)}
     LaunchedEffect(saved){if(!dragging)value=saved.toFloat()}
@@ -484,8 +542,8 @@ private fun themeLabel(id:String)=when(id){HolidayThemeTokens.EVERGREEN->"Evergr
     }
 }
 @Composable private fun HolidayChoice(prefs:SharedPreferences,state:HolidayUiState,actions:HolidayActions,title:String,key:String,options:List<String>,default:Int){
-    val locked=HolidayAccess.plusNumber(key)&&!state.plus.owned
-    val index=remember(key,state.revision,state.plus.owned){if(locked)default else prefs.getInt(key,default).coerceIn(options.indices)}
+    val locked=HolidayAccess.plusNumber(key)&&!state.plus.hasAccess
+    val index=remember(key,state.revision,state.plus.hasAccess){if(locked)default else prefs.getInt(key,default).coerceIn(options.indices)}
     var open by remember{mutableStateOf(false)}
     Column(Modifier.fillMaxWidth().padding(vertical=10.dp)){
         Text(title,style=MaterialTheme.typography.bodyLarge);Spacer(Modifier.height(8.dp))

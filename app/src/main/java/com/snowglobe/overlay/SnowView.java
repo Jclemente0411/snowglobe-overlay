@@ -39,7 +39,7 @@ public class SnowView extends View implements Choreographer.FrameCallback {
     /** Entitlement is read at snapshot boundaries only, never inside a frame. */
     private SceneSettings settingsSnapshot(){
         return new SceneSettings(preferences,
-            HolidayPlusEntitlement.isOwned(getContext(),BuildConfig.PLAY_BILLING_PUBLIC_KEY));
+            HolidayFeatureAccess.hasAccess(getContext()));
     }
     private void reload(){
         renderer.apply(settingsSnapshot());power.read();resizeScene();invalidate();updateSchedule();
@@ -73,8 +73,14 @@ public class SnowView extends View implements Choreographer.FrameCallback {
         if(preview&&getWidth()>0)density=Math.min(density,getWidth()/330f);
         renderer.resize(getWidth(),getHeight(),top,bottom,density);
     }
-    @Override protected void onVisibilityChanged(View changed,int visibility){super.onVisibilityChanged(changed,visibility);if(renderer!=null)updateSchedule();}
-    @Override protected void onWindowVisibilityChanged(int visibility){super.onWindowVisibilityChanged(visibility);if(renderer!=null)updateSchedule();}
+    @Override protected void onVisibilityChanged(View changed,int visibility){
+        super.onVisibilityChanged(changed,visibility);
+        if(renderer!=null&&power!=null){if(visibility==VISIBLE)reload();else updateSchedule();}
+    }
+    @Override protected void onWindowVisibilityChanged(int visibility){
+        super.onWindowVisibilityChanged(visibility);
+        if(renderer!=null&&power!=null){if(visibility==VISIBLE)reload();else updateSchedule();}
+    }
     private boolean visible(){return enabled&&powerInteractive()&&isAttachedToWindow()&&isShown()&&getWindowVisibility()==VISIBLE;}
     private int fps(){Display display=getDisplay();float hz=display==null?60f:display.getRefreshRate();
         int quality=keyboardTyping||imeVisible?0:renderer.settings().quality;

@@ -41,14 +41,14 @@ public class SnowWallpaperService extends WallpaperService {
             WindowManager wm=context.getSystemService(WindowManager.class);if(wm!=null)displayHz=wm.getDefaultDisplay().getRefreshRate();
             renderer=new SceneRenderer(density,settingsSnapshot());renderer.setWallpaper(true);
             power=new RenderPowerMonitor(context,()->{
-                cancel();if(power!=null&&power.interactive&&visible){frames=0;renderer.wake();requestFrame();}
+                cancel();if(power!=null&&power.interactive&&visible){renderer.apply(settingsSnapshot());frames=0;renderer.wake();requestFrame();}
             });
             power.attach();prefs.registerOnSharedPreferenceChangeListener(changes);
             setTouchEventsEnabled(true);setOffsetNotificationsEnabled(false);
         }
         private void updateGeometry(){if(renderer!=null)renderer.resize(surfaceWidth,surfaceHeight,Math.max(safeTop,32*density),safeBottom,density);}
         private SceneSettings settingsSnapshot(){return new SceneSettings(prefs,
-            HolidayPlusEntitlement.isOwned(SnowWallpaperService.this,BuildConfig.PLAY_BILLING_PUBLIC_KEY));}
+            HolidayFeatureAccess.hasAccess(SnowWallpaperService.this));}
         @Override public void onApplyWindowInsets(WindowInsets insets){
             super.onApplyWindowInsets(insets);
             if(Build.VERSION.SDK_INT>=30){android.graphics.Insets safe=insets.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());safeTop=safe.top;safeBottom=safe.bottom;}
@@ -65,7 +65,7 @@ public class SnowWallpaperService extends WallpaperService {
         @Override public void onSurfaceDestroyed(SurfaceHolder holder){surfaceReady=false;countVisibility(false);cancel();super.onSurfaceDestroyed(holder);}
         @Override public void onVisibilityChanged(boolean shown){
             visible=shown;countVisibility(shown&&surfaceReady);cancel();
-            if(shown&&power!=null){power.read();failures=0;frames=0;renderer.wake();render();requestFrame();}
+            if(shown&&power!=null){renderer.apply(settingsSnapshot());power.read();failures=0;frames=0;renderer.wake();render();requestFrame();}
         }
         @Override public void onTouchEvent(MotionEvent event){
             if(renderer!=null&&visible&&power!=null&&power.interactive&&event.getActionMasked()==MotionEvent.ACTION_DOWN){

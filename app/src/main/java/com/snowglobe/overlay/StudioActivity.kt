@@ -40,7 +40,10 @@ class StudioActivity:ComponentActivity(){
     private var setupMessage by mutableStateOf<String?>(null)
     private var undo by mutableStateOf<SceneSnapshot?>(null)
     private var undoName="Custom"
-    private val changes=SharedPreferences.OnSharedPreferenceChangeListener{_,_->revision++}
+    private val changes=SharedPreferences.OnSharedPreferenceChangeListener{_,key->
+        if(key=="plusRevision")refreshTrialAccess()
+        revision++
+    }
     private val notifications=registerForActivityResult(ActivityResultContracts.RequestPermission()){startWhenAllowed()}
     private val wallpaperDocument=registerForActivityResult(ActivityResultContracts.CreateDocument("image/png")){uri->
         if(uri!=null)exportWallpaper(uri,wallpaperDesign)
@@ -54,10 +57,13 @@ class StudioActivity:ComponentActivity(){
         val oldKeys=prefs.all.keys.filter{it.startsWith("keyboard")}
         if(oldKeys.isNotEmpty())prefs.edit().also{edit->oldKeys.forEach{edit.remove(it)}}.apply()
         billing=HolidayPlusBilling(this,BuildConfig.PLAY_BILLING_PUBLIC_KEY){snapshot->
-            plus=PlusUiState(snapshot.owned,snapshot.pending,snapshot.busy,snapshot.canBuy,
-                snapshot.verificationConfigured,snapshot.formattedPrice,snapshot.message)
+            plus=plus.copy(owned=snapshot.owned,pending=snapshot.pending,busy=snapshot.busy,
+                canBuy=snapshot.canBuy,configured=snapshot.verificationConfigured,
+                price=snapshot.formattedPrice,message=snapshot.message)
+            refreshTrialAccess()
             revision++
         }
+        refreshTrialAccess()
         prefs.registerOnSharedPreferenceChangeListener(changes)
         if(!prefs.contains("effectsEnabled"))prefs.edit().putBoolean("effectsEnabled",false).apply()
         // Preserve existing quality selections; new installations start with Auto.
@@ -73,7 +79,7 @@ class StudioActivity:ComponentActivity(){
         savedInstanceState?.getString("undoScene")?.let{try{undo=SceneSnapshot.decode(it);undoName=savedInstanceState.getString("undoName","Custom")}catch(_:IllegalArgumentException){}}
         val actions=HolidayActions(::enable,::openPlaySafely,::addQuickTile,::wallpaperPicker,::changeBoolean,::changeNumber,
             ::applyScene,::restoreUndo,::saveScene,::loadScene,::deleteScene,::systemBars,
-            ::buyPlus,{billing.restore()},::saveWallpaper,{plusRequest++})
+            ::buyPlus,{billing.restore()},::saveWallpaper,{plusRequest++},::activateCode)
         setContent{HolidayStudio(prefs,scenes,HolidayUiState(revision,permission,lockApplied,lockCheckAvailable,setupError,setupMessage,undo!=null,plus,plusRequest,wallpaperBusy),actions)}
         billing.start()
     }
@@ -83,7 +89,7 @@ class StudioActivity:ComponentActivity(){
             navigationBarStyle=if(dark)SystemBarStyle.dark(clear)else SystemBarStyle.light(clear,clear))
     }
     override fun onStart(){super.onStart();EffectsService.studioStarted(studioToken)}
-    override fun onResume(){super.onResume();permission=Settings.canDrawOverlays(this);checkWallpaper();startWhenAllowed();if(::billing.isInitialized)billing.refresh();revision++}
+    override fun onResume(){super.onResume();permission=Settings.canDrawOverlays(this);checkWallpaper();startWhenAllowed();refreshTrialAccess();if(::billing.isInitialized)billing.refresh();revision++}
     override fun onStop(){EffectsService.studioStopped(studioToken);super.onStop()}
     override fun onDestroy(){EffectsService.studioStopped(studioToken);if(::billing.isInitialized)billing.close();artworkWorker.shutdown();prefs.unregisterOnSharedPreferenceChangeListener(changes);super.onDestroy()}
     override fun onSaveInstanceState(out:Bundle){out.putInt("wallpaperDesign",wallpaperDesign);undo?.let{out.putString("undoScene",it.encode());out.putString("undoName",undoName)};super.onSaveInstanceState(out)}
@@ -106,8 +112,22 @@ class StudioActivity:ComponentActivity(){
         else startWhenAllowed()
     }
     private fun requirePlus():Boolean{
-        if(HolidayPlusEntitlement.isOwned(this,BuildConfig.PLAY_BILLING_PUBLIC_KEY))return true
+        if(HolidayFeatureAccess.hasAccess(this))return true
         plusRequest++;return false
+    }
+    private fun refreshTrialAccess(){
+        val trial=HolidayTrialAccess.snapshot(this)
+        val expired=plus.trialActive&&!trial.active
+        plus=plus.copy(trialActive=trial.active,trialExpiresAtMillis=trial.expiresAtMillis,
+            trialMessage=trial.message,codeMessage=if(expired)""else plus.codeMessage,
+            codeError=if(expired)false else plus.codeError)
+    }
+    private fun activateCode(code:String){
+        val result=HolidayTrialAccess.redeem(this,code)
+        plus=plus.copy(trialActive=result.snapshot.active,
+            trialExpiresAtMillis=result.snapshot.expiresAtMillis,trialMessage=result.snapshot.message,
+            codeMessage=result.message,codeError=!result.success)
+        revision++
     }
     private fun buyPlus(){
         if(!billing.snapshot().canBuy)return
